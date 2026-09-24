@@ -24,7 +24,7 @@ export function GetStarted({ connected, funded, fauceting, hasOpen, claimable, n
   const steps = [
     {
       title: "Connect a wallet",
-      body: "Phantom, Solflare or Backpack. Everything runs on Solana devnet with test money.",
+      body: "Phantom, Solflare, Backpack or MetaMask, switched to Solana Devnet (Phantom: Settings, Developer Settings, Testnet Mode). Test money only.",
       done: connected,
       action: connected ? null : { label: "Connect", onClick: () => setVisible(true) },
     },

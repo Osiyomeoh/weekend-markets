@@ -124,15 +124,31 @@ export function useSendIxs() {
       if (!publicKey) throw new Error("Connect a wallet first");
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
       const tx = new Transaction({ feePayer: publicKey, blockhash, lastValidBlockHeight }).add(...ixs);
-      const signature = signTransaction
-        ? await connection.sendRawTransaction((await signTransaction(tx)).serialize(), { preflightCommitment: "confirmed" })
-        : await sendTransaction(tx, connection);
+      let signature: string;
+      try {
+        signature = signTransaction
+          ? await connection.sendRawTransaction((await signTransaction(tx)).serialize(), { preflightCommitment: "confirmed" })
+          : await sendTransaction(tx, connection);
+      } catch (e) {
+        throw new Error(walletHint(e as Error));
+      }
       const res = await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
       if (res.value.err) throw new Error(`Transaction failed: ${JSON.stringify(res.value.err)}`);
       return signature;
     },
     [connection, publicKey, sendTransaction, signTransaction],
   );
+}
+
+/**
+ * Wallets preview a transaction on whatever network they are set to. Ours only
+ * exist on devnet, so a wallet on mainnet shows a failed simulation and the
+ * user cancels; say what to change.
+ */
+function walletHint(e: Error): string {
+  return /reject|denied|cancel|declin/i.test(e.message)
+    ? "Cancelled in your wallet. If it showed Solana Mainnet or a failed simulation, switch the wallet to Devnet and try again."
+    : e.message;
 }
 
 export function useWalletKey(): PublicKey | null {

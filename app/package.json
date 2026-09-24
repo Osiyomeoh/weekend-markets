@@ -10,7 +10,9 @@
     "test": "vitest run",
     "setup:devnet": "tsx scripts/setup-devnet.ts",
     "series": "tsx scripts/create-series.ts",
-    "keeper": "tsx scripts/settle-due.ts"
+    "keeper": "tsx scripts/settle-due.ts",
+    "status": "tsx scripts/status.ts",
+    "smoke": "tsx scripts/smoke.ts"
   },
   "dependencies": {
     "@anchor-lang/core": "^1.2.0",
