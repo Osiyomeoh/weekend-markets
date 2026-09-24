@@ -18,14 +18,17 @@
  */
 import "./env";
 
-import { getAssociatedTokenAddressSync } from "@solana/spl-token";
+import {
+  createAssociatedTokenAccountIdempotentInstruction,
+  createMintToInstruction,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
 import { ComputeBudgetProgram, Connection, Transaction } from "@solana/web3.js";
 import { parseArgs } from "node:util";
 
 import { COLLATERAL_DECIMALS, COLLATERAL_MINT, explorerAddress, RPC_URL } from "../src/lib/config";
 import { modelProbabilityAbove, strikeToOnChain } from "../src/lib/ladder";
 import { createMarketIx, getProgram, placeBetIxs } from "../src/lib/program";
-import { drip } from "../src/lib/server/faucet";
 import { loadOperator } from "../src/lib/server/operator";
 import { latestQuotes } from "../src/lib/server/pyth";
 import { STOCKS } from "../src/lib/stocks";
@@ -97,10 +100,22 @@ async function main() {
   const candidates = STOCKS.filter((s) => !wanted || wanted.includes(s.symbol));
   const quotes = await latestQuotes(candidates.map((s) => s.equityFeedId));
 
-  // Make sure the operator can seed.
-  await drip(connection, operator, operator.publicKey);
+  // The operator is the test-USDC mint authority: mint exactly what seeding needs.
   const operatorToken = getAssociatedTokenAddressSync(COLLATERAL_MINT, operator.publicKey);
-  console.log("operator tUSDC", (await connection.getTokenAccountBalance(operatorToken)).value.uiAmountString);
+  const needed = seed * BigInt(nStrikes * candidates.length);
+  const have = await connection
+    .getTokenAccountBalance(operatorToken)
+    .then((b) => BigInt(b.value.amount))
+    .catch(() => 0n);
+  if (have < needed) {
+    await program.provider.sendAndConfirm!(
+      new Transaction().add(
+        createAssociatedTokenAccountIdempotentInstruction(operator.publicKey, operatorToken, operator.publicKey, COLLATERAL_MINT),
+        createMintToInstruction(COLLATERAL_MINT, operatorToken, operator.publicKey, needed - have),
+      ),
+      [operator],
+    );
+  }
 
   const years = (resolveTs - Date.now() / 1000) / (365 * 86_400);
   console.log(`settles ${new Date(resolveTs * 1000).toISOString()}, betting closes ${new Date(lockTs * 1000).toISOString()}`);
