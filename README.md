@@ -79,7 +79,8 @@ flowchart TB
 
 - **Program** ([`programs/weekend-markets`](programs/weekend-markets)): Anchor 1.2 with `pyth-solana-receiver-sdk` 2.0 (`pro-compatible`, the receiver after Pyth's August 2026 Core upgrade). Instructions: `create_market`, `place_bet`, `resolve`, `void_market`, `claim`, `close_market`. Collateral is classic SPL Token only, since Token-2022 transfer fees and hooks would break the pool accounting.
 - **Operator:** creates ladders, seeds them, runs the faucet and pays fees to post settlement prices. It has no special power in the program: `resolve` and `void_market` are permissionless, and it can't touch anyone's stake.
-- **Keeper and settle route:** fetch the update for `resolve_ts` from Hermes, run the same timing check the program runs (so they never pay to post a price that would be rejected), post it through the Pyth receiver and call `resolve` in the same transaction set, then close the temporary price account to recover rent.
+- **Keeper and settle route:** fetch the update for `resolve_ts` from Hermes, run the same timing check the program runs (so they never pay to post a price that would be rejected), post it through the Pyth receiver once per ladder and call `resolve` for every strike in the same transaction set, then close the temporary price account to recover rent.
+- **Always on:** a scheduled job calls the keeper every 10 minutes. It settles whatever is due and opens a new ladder for every weekday's opening bell, so the app runs without anyone at a laptop.
 
 ## What's built
 
@@ -90,7 +91,8 @@ flowchart TB
   - a four-step start guide that ticks off from on-chain state;
   - positions described by what they pay, one-click claim;
   - devnet faucet.
-- **TypeScript client, keeper and operator scripts:** `series` (create a ladder), `add-liquidity`, `keeper` (settle what's due), `status`, and `smoke` (runs the whole user flow against a deployed app with a fresh wallet).
+- **Always-on keeper:** settles due ladders and opens the next opening-bell ladder every 10 minutes (GitHub Actions calling a secured route).
+- **TypeScript client, keeper and operator scripts:** `series` (open a ladder), `add-liquidity`, `tick` and `keeper` (one pass, or every minute), `status`, and `smoke` (runs the whole user flow against a deployed app with a fresh wallet).
 - **29 TypeScript unit tests** for the ladder and cover math.
 
 ## Limits

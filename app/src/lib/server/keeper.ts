@@ -70,6 +70,83 @@ export async function settleMarket(connection: Connection, operator: Keypair, ma
   return { action: "resolved", signatures, market: await fetchMarket(program, market) };
 }
 
+export type LadderResult = {
+  resolved: MarketView[];
+  voided: MarketView[];
+  /** Markets that couldn't be settled yet, with the reason. */
+  pending: { market: string; reason: string }[];
+  signatures: string[];
+};
+
+/**
+ * Settles every due market in `markets` with as few transactions as possible:
+ * strikes that share a feed and a deadline (a ladder) share one posted Pyth
+ * update, and every `resolve` reads it. One-sided markets are voided.
+ */
+export async function settleLadder(connection: Connection, operator: Keypair, markets: PublicKey[]): Promise<LadderResult> {
+  const wallet = keypairWallet(operator);
+  const program = getProgram(connection, wallet);
+  const views = await Promise.all(markets.map((m) => fetchMarket(program, m)));
+  const now = nowSecs();
+  const result: LadderResult = { resolved: [], voided: [], pending: [], signatures: [] };
+
+  const open = views.filter((m) => m.status === "open");
+  const oneSided = open.filter((m) => now >= m.lockTs && (m.yesPool === 0n || m.noPool === 0n));
+  const due = open.filter((m) => !oneSided.includes(m) && now >= m.resolveTs);
+  for (const m of open.filter((m) => !oneSided.includes(m) && !due.includes(m))) {
+    result.pending.push({ market: m.address, reason: `resolves at ${m.resolveTs}` });
+  }
+
+  if (oneSided.length > 0) {
+    const tx = new Transaction();
+    for (const m of oneSided) tx.add(await voidIx(program, new PublicKey(m.address)));
+    result.signatures.push(await program.provider.sendAndConfirm!(tx, [operator], { commitment: "confirmed" }));
+  }
+
+  const groups = new Map<string, MarketView[]>();
+  for (const m of due) {
+    const key = `${m.feedId}:${m.resolveTs}:${m.resolveWindowSecs}`;
+    groups.set(key, [...(groups.get(key) ?? []), m]);
+  }
+  for (const group of groups.values()) {
+    const { feedId, resolveTs, resolveWindowSecs } = group[0];
+    let update;
+    try {
+      update = await settlementUpdate(feedId, resolveTs, resolveWindowSecs);
+    } catch (e) {
+      for (const m of group) result.pending.push({ market: m.address, reason: (e as Error).message });
+      continue;
+    }
+    const receiver = new PythSolanaReceiver({
+      connection,
+      wallet: wallet as never,
+      receiverProgramId: PRO_COMPATIBLE_RECEIVER_PROGRAM_ID,
+      wormholeProgramId: PRO_COMPATIBLE_WORMHOLE_PROGRAM_ID,
+      pushOracleProgramId: PRO_COMPATIBLE_PUSH_ORACLE_PROGRAM_ID,
+    });
+    const builder = receiver.newTransactionBuilder({ closeUpdateAccounts: true });
+    await builder.addPostPriceUpdates(update.data);
+    await builder.addPriceConsumerInstructions(async (getPriceUpdateAccount) =>
+      Promise.all(
+        group.map(async (m) => ({
+          instruction: await resolveIx(program, new PublicKey(m.address), getPriceUpdateAccount(feedId)),
+          signers: [],
+        })),
+      ),
+    );
+    const txs = await builder.buildVersionedTransactions({ computeUnitPriceMicroLamports: 50_000, tightComputeBudget: true });
+    result.signatures.push(...(await receiver.provider.sendAll(txs, { commitment: "confirmed" })));
+  }
+
+  const after = await Promise.all([...oneSided, ...due].map((m) => fetchMarket(program, new PublicKey(m.address))));
+  result.voided = after.filter((m) => m.status === "voided");
+  result.resolved = after.filter((m) => m.status === "resolved");
+  for (const m of after.filter((m) => m.status === "open")) {
+    if (!result.pending.some((p) => p.market === m.address)) result.pending.push({ market: m.address, reason: "still open" });
+  }
+  return result;
+}
+
 export async function voidMarket(connection: Connection, operator: Keypair, market: PublicKey): Promise<SettleResult> {
   const program = getProgram(connection, keypairWallet(operator));
   const tx = new Transaction().add(await voidIx(program, market));

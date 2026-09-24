@@ -1,0 +1,27 @@
+# Keeps the live app running: settles due markets and opens the next ladder.
+# The work happens in the app's /api/cron/tick route; this only calls it.
+# Needs the CRON_SECRET repository secret, matching the app's CRON_SECRET.
+name: keeper
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: keeper
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Settle due markets and open the next ladder
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL || 'https://weekend-markets.vercel.app' }}
+        run: |
+          curl -fsS --max-time 90 -X POST \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_URL}/api/cron/tick"
