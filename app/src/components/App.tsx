@@ -5,10 +5,11 @@ import { useMemo, useState } from "react";
 
 import { COLLATERAL_SYMBOL, explorerAddress, explorerTx, PROGRAM_ID } from "@/lib/config";
 import { tokens, usd } from "@/lib/format";
-import { useMarkets, useNow, usePositions, usePrices, useTokenBalance, useWalletKey } from "@/lib/hooks";
+import { useHoldings, useMarkets, useNow, usePositions, usePrices, useTokenBalance, useWalletKey } from "@/lib/hooks";
 import { groupSeries } from "@/lib/ladder";
 import { STOCKS } from "@/lib/stocks";
 
+import { CoverPanel } from "./CoverPanel";
 import { PositionsPanel } from "./PositionsPanel";
 import { SeriesCard, seriesPhase } from "./SeriesCard";
 
@@ -27,6 +28,7 @@ export function App() {
   const markets = useMarkets();
   const positions = usePositions();
   const balance = useTokenBalance();
+  const holdings = useHoldings();
   const [toast, setToast] = useState<Toast | null>(null);
   const [fauceting, setFauceting] = useState(false);
 
@@ -81,7 +83,7 @@ export function App() {
           <Bell />
           <div>
             <div className="text-lg font-semibold tracking-tight">Weekend Markets</div>
-            <div className="text-xs text-muted">Where will it print when the bell rings?</div>
+            <div className="text-xs text-muted">Gap cover for tokenized stocks</div>
           </div>
           <span className="rounded-full border border-line px-2 py-0.5 text-[11px] text-muted">Solana devnet</span>
         </div>
@@ -109,10 +111,11 @@ export function App() {
           Tokenized stocks trade 24/7. The market that prices them is open 32.5 hours a week.
         </h1>
         <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
-          Take a side on where a stock prints when trading resumes. Each strike is a YES/NO pool; winners split the pot.
-          Settlement is permissionless and fixed in advance: the program only accepts the{" "}
-          <span className="text-text">first Pyth price published at or after the deadline</span>, so nobody, including us,
-          can pick the number. Across strikes, the pools add up to the crowd&apos;s forecast of the next print.
+          Whatever happens while Nasdaq is closed lands on the next opening print, and a TSLAx or TSLAon holder has no way
+          to hedge it. Weekend Markets lets holders <span className="text-text">buy cover that pays if the stock opens lower</span>,
+          and lets anyone with a view take the other side. Every market settles on the{" "}
+          <span className="text-text">first Pyth price published at or after the bell</span>, checked on-chain, so nobody,
+          including us, picks the number.
         </p>
       </section>
 
@@ -140,6 +143,25 @@ export function App() {
       {prices.error && <p className="text-sm text-no">Pyth prices unavailable: {prices.error}</p>}
       {markets.data && listed.length === 0 && (
         <p className="rounded-xl border border-line bg-panel px-5 py-6 text-sm text-muted">No markets yet.</p>
+      )}
+
+      {stock && (
+        <CoverPanel
+          stock={stock}
+          series={stockSeries}
+          quote={prices.data?.[stock.equityFeedId]}
+          holdings={holdings.data ?? []}
+          balance={balance.data}
+          now={now}
+          onChanged={refreshAll}
+          notify={notify}
+        />
+      )}
+
+      {stock && stockSeries.length > 0 && (
+        <h2 className="-mb-2 mt-2 text-sm font-medium text-muted">
+          The ladders behind the cover: take either side of any strike
+        </h2>
       )}
 
       {stock &&
@@ -198,8 +220,8 @@ export function App() {
 
 function HowItWorks() {
   const steps = [
-    ["Pick a strike", "Each row asks one question: will the stock print at or above this price at the settlement time?"],
-    ["Stake YES or NO", "Stakes go into an on-chain vault. The price you see is the pool split; no house, no fee, no AMM."],
+    ["Holders buy cover", "Enter your shares, or connect a wallet holding TSLAx or TSLAon. We stake NO on each strike below the price, sized so the payout follows your loss down in steps."],
+    ["Traders take the other side", "Each strike is a YES/NO pool in an on-chain vault. The pool split is the crowd's probability: no house, no fee, no AMM."],
     ["Settled by Pyth", "At the deadline, anyone posts the first Pyth price at or after it. The program checks the timing, the feed, the Wormhole signatures and the confidence band."],
     ["Winners split the pot", "Pro rata to stake. If a side is empty or no valid price arrives, everyone is refunded."],
   ];

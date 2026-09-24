@@ -10,6 +10,7 @@ import { MarketView } from "./ladder";
 import { fetchMarkets, fetchPositions, getProgram, PositionView } from "./program";
 
 export type Quote = { feedId: string; price: number; conf: number; publishTime: number };
+export type Holding = { stock: string; symbol: string; issuer: string; mint: string; shares: number };
 
 /** Re-runs `fn` every `ms`, and immediately whenever `deps` change. */
 function usePoll<T>(fn: () => Promise<T>, ms: number, deps: unknown[]) {
@@ -90,6 +91,23 @@ export function useTokenBalance() {
     },
     8_000,
     [connection, publicKey?.toBase58()],
+  );
+}
+
+/** Tokenized stocks the connected wallet holds on mainnet (read-only lookup). */
+export function useHoldings() {
+  const { publicKey } = useWallet();
+  const owner = publicKey?.toBase58();
+  return usePoll(
+    async (): Promise<Holding[]> => {
+      if (!owner) return [];
+      const res = await fetch(`/api/holdings?owner=${owner}`);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "holdings lookup failed");
+      return body.holdings as Holding[];
+    },
+    120_000,
+    [owner],
   );
 }
 

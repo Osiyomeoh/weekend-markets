@@ -1,3 +1,6 @@
+/** A tokenized version of a stock on Solana mainnet (all are Token-2022). */
+export type TokenizedStock = { symbol: string; issuer: string; mint: string };
+
 /** Stocks we list, with the Pyth feeds that price them. */
 export type Stock = {
   symbol: string;
@@ -10,6 +13,8 @@ export type Stock = {
   annualVol: number;
   /** Strike spacing in dollars. */
   tick: number;
+  /** Mainnet tokens that track the stock, for reading what a wallet holds. */
+  tokenized: TokenizedStock[];
 };
 
 export const STOCKS: Stock[] = [
@@ -20,6 +25,10 @@ export const STOCKS: Stock[] = [
     xstockFeedId: "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f",
     annualVol: 0.5,
     tick: 1,
+    tokenized: [
+      { symbol: "NVDAx", issuer: "xStocks", mint: "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh" },
+      { symbol: "NVDAon", issuer: "Ondo", mint: "gEGtLTPNQ7jcg25zTetkbmF7teoDLcrfTnQfmn2ondo" },
+    ],
   },
   {
     symbol: "AAPL",
@@ -28,6 +37,10 @@ export const STOCKS: Stock[] = [
     xstockFeedId: "0x978e6cc68a119ce066aa830017318563a9ed04ec3a0a6439010fc11296a58675",
     annualVol: 0.25,
     tick: 1,
+    tokenized: [
+      { symbol: "AAPLx", issuer: "xStocks", mint: "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp" },
+      { symbol: "AAPLon", issuer: "Ondo", mint: "123mYEnRLM2LLYsJW3K6oyYh8uP1fngj732iG638ondo" },
+    ],
   },
   {
     symbol: "TSLA",
@@ -36,6 +49,10 @@ export const STOCKS: Stock[] = [
     xstockFeedId: "0x47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362",
     annualVol: 0.6,
     tick: 2.5,
+    tokenized: [
+      { symbol: "TSLAx", issuer: "xStocks", mint: "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB" },
+      { symbol: "TSLAon", issuer: "Ondo", mint: "KeGv7bsfR4MheC1CkmnAVceoApjrkvBhHYjWb67ondo" },
+    ],
   },
   {
     symbol: "SPY",
@@ -44,6 +61,10 @@ export const STOCKS: Stock[] = [
     xstockFeedId: "0x2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14",
     annualVol: 0.15,
     tick: 1,
+    tokenized: [
+      { symbol: "SPYx", issuer: "xStocks", mint: "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W" },
+      { symbol: "SPYon", issuer: "Ondo", mint: "k18WJUULWheRkSpSquYGdNNmtuE2Vbw1hpuUi92ondo" },
+    ],
   },
 ];
 
