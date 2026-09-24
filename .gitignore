@@ -14,3 +14,4 @@ test-ledger
 dist
 *.keypair.json
 keys/
+.claude/

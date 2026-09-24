@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0a0c0f;
+  --panel: #111419;
+  --panel-2: #161a21;
+  --line: #222832;
+  --text: #e8eaed;
+  --muted: #8b94a3;
+  --faint: #5b6472;
+  --yes: #2fbf71;
+  --yes-soft: rgba(47, 191, 113, 0.14);
+  --no: #ef5a6f;
+  --no-soft: rgba(239, 90, 111, 0.14);
+  --bell: #f2b441;
+  --bell-soft: rgba(242, 180, 65, 0.14);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-yes: var(--yes);
+  --color-yes-soft: var(--yes-soft);
+  --color-no: var(--no);
+  --color-no-soft: var(--no-soft);
+  --color-bell: var(--bell);
+  --color-bell-soft: var(--bell-soft);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+.num {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Wallet adapter button, matched to the theme */
+.wallet-adapter-button-trigger {
+  background: var(--panel-2) !important;
+  border: 1px solid var(--line) !important;
+  height: 36px !important;
+  font-size: 13px !important;
+  font-family: inherit !important;
+  border-radius: 8px !important;
+  padding: 0 14px !important;
+}
+.wallet-adapter-button-trigger:hover {
+  border-color: var(--faint) !important;
+}
