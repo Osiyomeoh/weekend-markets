@@ -7,7 +7,7 @@ import { useState } from "react";
 import { COLLATERAL_SYMBOL } from "@/lib/config";
 import { etTime, tokens, usd } from "@/lib/format";
 import { MarketView, PositionView, useSendIxs, useWalletKey } from "@/lib/hooks";
-import { positionPayout } from "@/lib/ladder";
+import { currentPayout, positionPayout } from "@/lib/ladder";
 import { claimIxs, getProgram } from "@/lib/program";
 import { stockByEquityFeed } from "@/lib/stocks";
 
@@ -49,10 +49,10 @@ export function PositionsPanel({
   }
 
   return (
-    <section className="rounded-xl border border-line bg-panel">
-      <header className="border-b border-line px-5 py-3 text-sm font-medium">Your positions</header>
+    <section id="positions" className="scroll-mt-4 rounded-xl border border-line bg-panel">
+      <header className="border-b border-line px-5 py-3 text-sm font-medium">Your cover and positions</header>
       {rows.length === 0 ? (
-        <p className="px-5 py-4 text-sm text-muted">No open positions. Pick a strike and stake YES or NO.</p>
+        <p className="px-5 py-4 text-sm text-muted">Nothing yet. Buy cover above, or pick Yes or No on any strike.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-sm">
@@ -63,7 +63,7 @@ export function PositionsPanel({
                   <tr key={p.address} className="border-b border-line/60 last:border-0">
                     <td className="px-5 py-3">
                       <div className="font-medium">
-                        {stockByEquityFeed(m.feedId)?.symbol ?? "?"} ≥ <span className="num">{usd(m.strike)}</span>
+                        {symbolOf(m)} ≥ <span className="num">{usd(m.strike)}</span>
                       </div>
                       <div className="text-xs text-faint">{etTime(m.resolveTs, false)}</div>
                     </td>
@@ -72,7 +72,13 @@ export function PositionsPanel({
                       {p.noAmount > 0n && <div className="text-no">NO {tokens(p.noAmount)}</div>}
                     </td>
                     <td className="px-3 py-3 text-xs text-muted">
-                      {m.status === "open" ? "Open" : m.status === "voided" ? "Voided · refund" : `${m.outcome?.toUpperCase()} won`}
+                      {m.status === "open" ? (
+                        <OpenPayouts m={m} p={p} symbol={symbolOf(m)} />
+                      ) : m.status === "voided" ? (
+                        "Voided · full refund"
+                      ) : (
+                        `Settled at ${usd(m.settlePrice!)} · ${m.outcome?.toUpperCase()} won`
+                      )}
                     </td>
                     <td className="px-5 py-3 text-right">
                       {owed === null ? (
@@ -95,5 +101,28 @@ export function PositionsPanel({
         </div>
       )}
     </section>
+  );
+}
+
+function symbolOf(m: MarketView): string {
+  return stockByEquityFeed(m.feedId)?.symbol ?? "?";
+}
+
+/** Plain-language payouts for an open position, at the pools as they stand. */
+function OpenPayouts({ m, p, symbol }: { m: MarketView; p: PositionView; symbol: string }) {
+  return (
+    <div className="num space-y-0.5">
+      {p.noAmount > 0n && (
+        <div>
+          Below {usd(m.strike)}: pays <span className="text-text">~{tokens(currentPayout(m, "no", p.noAmount))}</span>
+        </div>
+      )}
+      {p.yesAmount > 0n && (
+        <div>
+          At or above {usd(m.strike)}: pays <span className="text-text">~{tokens(currentPayout(m, "yes", p.yesAmount))}</span>
+        </div>
+      )}
+      <div className="text-faint">if {symbol} settles there</div>
+    </div>
   );
 }

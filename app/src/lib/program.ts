@@ -69,6 +69,8 @@ export function toMarketView(address: PublicKey, m: RawMarket): MarketView {
     lockTs: m.lockTs.toNumber(),
     resolveTs: m.resolveTs.toNumber(),
     resolveWindowSecs: m.resolveWindowSecs,
+    voidDelaySecs: m.voidDelaySecs,
+    maxConfBps: m.maxConfBps,
     yesPool: BigInt(m.yesPool.toString()),
     noPool: BigInt(m.noPool.toString()),
     openPositions: m.openPositions,

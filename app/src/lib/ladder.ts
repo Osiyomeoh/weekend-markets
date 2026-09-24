@@ -17,6 +17,10 @@ export type MarketView = {
   lockTs: number;
   resolveTs: number;
   resolveWindowSecs: number;
+  /** After the window, a market with no valid print can be voided once this passes. */
+  voidDelaySecs: number;
+  /** Largest Pyth confidence interval accepted, in basis points of the price. */
+  maxConfBps: number;
   yesPool: bigint;
   noPool: bigint;
   openPositions: number;
@@ -135,6 +139,13 @@ export function previewPayout(
   const no = m.noPool + (side === "no" ? amount : 0n);
   const winning = side === "yes" ? yes : no;
   return (amount * (yes + no)) / winning;
+}
+
+/** What a stake already in the pool pays if its side wins, at the pools as they stand. */
+export function currentPayout(m: Pick<MarketView, "yesPool" | "noPool">, side: Side, stake: bigint): bigint {
+  const pool = side === "yes" ? m.yesPool : m.noPool;
+  if (stake <= 0n || pool === 0n) return 0n;
+  return (stake * (m.yesPool + m.noPool)) / pool;
 }
 
 /** Payout owed to a settled position, mirroring `math::payout` on-chain. */

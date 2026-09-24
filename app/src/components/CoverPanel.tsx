@@ -58,7 +58,8 @@ export function CoverPanel({ stock, series, quote, holdings, balance, now, onCha
   const below = (target && spot !== undefined ? target.markets.filter((m) => m.status === "open" && m.strike < spot) : [])
     .map((m) => m.strike)
     .sort((a, b) => b - a);
-  const from = below.includes(fromInput!) ? fromInput! : below[0];
+  // By default skip strikes hugging the price: a leg 0.1% below spot costs about as much as it pays.
+  const from = below.includes(fromInput!) ? fromInput! : (below.find((k) => spot !== undefined && k <= spot * 0.99) ?? below[0]);
   const to = below.includes(toInput!) && toInput! <= from ? toInput! : below.at(-1);
   const plan = target && spot !== undefined ? coverPlan(target.markets, spot, shares, UNIT, { from, to }) : null;
 
@@ -110,7 +111,7 @@ export function CoverPanel({ stock, series, quote, holdings, balance, now, onCha
         </span>
       </header>
 
-      <div className="grid gap-px bg-line lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-px bg-line lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
         <div className="flex flex-col gap-4 bg-panel px-5 py-4">
           {open.length > 1 && (
             <div className="flex flex-wrap gap-2" role="group" aria-label="Cover until">
@@ -191,12 +192,12 @@ export function CoverPanel({ stock, series, quote, holdings, balance, now, onCha
                 <PayoffChart plan={plan} spot={spot} shares={shares} />
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[420px] text-sm">
+                <table className="w-full text-sm">
                   <thead>
                     <tr className="border-y border-line text-left text-xs uppercase tracking-wider text-muted">
-                      <th className="px-5 py-2 font-normal">If {stock.symbol} settles below</th>
+                      <th className="px-3 py-2 font-normal sm:px-5">If {stock.symbol} settles below</th>
                       <th className="px-3 py-2 text-right font-normal">You are down at least</th>
-                      <th className="px-5 py-2 text-right font-normal">Cover pays</th>
+                      <th className="px-3 py-2 text-right font-normal sm:px-5">Cover pays</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -205,13 +206,13 @@ export function CoverPanel({ stock, series, quote, holdings, balance, now, onCha
                       const p = impliedProbability(l.market);
                       return (
                         <tr key={l.market.address} className="border-b border-line/60">
-                          <td className="num px-5 py-2.5">
+                          <td className="num px-3 py-2.5 sm:px-5">
                             {usd(l.strike)} <span className="text-faint">({pct(l.strike / spot - 1, 1)})</span>
                           </td>
                           <td className="num px-3 py-2.5 text-right text-no">{usd(shares * (spot - l.strike))}</td>
-                          <td className="num px-5 py-2.5 text-right">
+                          <td className="num px-3 py-2.5 text-right sm:px-5">
                             {tokens(paid)}{" "}
-                            <span className="text-xs text-faint" title="Crowd probability of settling below this strike">
+                            <span className="block text-xs text-faint sm:inline" title="Crowd probability of settling below this strike">
                               {p === null ? "" : `· ${Math.round((1 - p) * 100)}% odds`}
                             </span>
                           </td>

@@ -1,31 +1,22 @@
 "use client";
 
-import { useConnection } from "@solana/wallet-adapter-react";
-import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
-import { PublicKey } from "@solana/web3.js";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
-import { COLLATERAL_MINT, COLLATERAL_SYMBOL, explorerAddress } from "@/lib/config";
-import { countdown, etTime, pct, toRaw, tokens, usd } from "@/lib/format";
-import { Quote, useSendIxs, useWalletKey } from "@/lib/hooks";
-import {
-  impliedMedian,
-  impliedProbability,
-  MarketView,
-  previewPayout,
-  Series,
-  seriesCurve,
-  Side,
-} from "@/lib/ladder";
-import { getProgram, placeBetIxs } from "@/lib/program";
+import { COLLATERAL_SYMBOL, explorerAddress } from "@/lib/config";
+import { countdown, etTime, pct, tokens, usd } from "@/lib/format";
+import { Quote } from "@/lib/hooks";
+import { impliedMedian, impliedProbability, MarketView, Series, seriesCurve, Side } from "@/lib/ladder";
 import { Stock } from "@/lib/stocks";
 
 import { CurveChart } from "./CurveChart";
+import { SeriesRules } from "./SeriesRules";
+import { cents, sidePrice, TradeTicket } from "./TradeTicket";
 
 type Props = {
   series: Series;
   stock: Stock;
   quote: Quote | undefined;
+  balance: bigint | null | undefined;
   now: number;
   onChanged: () => void;
   notify: (msg: string, sig?: string) => void;
@@ -38,15 +29,12 @@ export function seriesPhase(s: Series, now: number): "open" | "locked" | "due" |
   return "open";
 }
 
-export function SeriesCard({ series, stock, quote, now, onChanged, notify }: Props) {
-  const { connection } = useConnection();
-  const wallet = useWalletKey();
-  const sendIxs = useSendIxs();
-  const [amount, setAmount] = useState("10");
+export function SeriesCard({ series, stock, quote, balance, now, onChanged, notify }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [pick, setPick] = useState<{ address: string; side: Side } | null>(null);
 
   const phase = seriesPhase(series, now);
-  const curve = useMemo(() => seriesCurve(series), [series]);
+  const curve = seriesCurve(series);
   const raw = series.markets.flatMap((m) => {
     const p = impliedProbability(m);
     return p === null ? [] : [{ strike: m.strike, p }];
@@ -56,33 +44,13 @@ export function SeriesCard({ series, stock, quote, now, onChanged, notify }: Pro
   const settled = series.markets.find((m) => m.settlePrice !== null);
   const spot = quote?.price;
   const quoteAge = quote ? now - quote.publishTime : null;
-  const raw_amount = toRaw(amount);
+  const picked = phase === "open" ? series.markets.find((m) => m.address === pick?.address && m.status === "open") : undefined;
 
   const markers = [
     ...(spot !== undefined && phase !== "settled" ? [{ x: spot, label: "Pyth now", color: "var(--text)" }] : []),
     ...(median !== null && phase !== "settled" ? [{ x: median, label: "Crowd 50%", color: "var(--bell)" }] : []),
     ...(settled?.settlePrice != null ? [{ x: settled.settlePrice, label: "Settled", color: "var(--bell)" }] : []),
   ];
-
-  async function bet(m: MarketView, side: Side) {
-    if (!wallet) return notify("Connect a wallet to trade.");
-    if (!raw_amount) return notify("Enter an amount.");
-    setBusy(`${m.address}:${side}`);
-    try {
-      const program = getProgram(connection);
-      const ata = getAssociatedTokenAddressSync(COLLATERAL_MINT, wallet);
-      const sig = await sendIxs([
-        createAssociatedTokenAccountIdempotentInstruction(wallet, ata, wallet, COLLATERAL_MINT),
-        ...(await placeBetIxs(program, { market: new PublicKey(m.address), bettor: wallet, side, amount: raw_amount })),
-      ]);
-      notify(`${side.toUpperCase()} ${tokens(raw_amount)} ${COLLATERAL_SYMBOL} on ${stock.symbol} ≥ ${usd(m.strike)}`, sig);
-      onChanged();
-    } catch (e) {
-      notify((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  }
 
   async function settle() {
     setBusy("settle");
@@ -130,84 +98,95 @@ export function SeriesCard({ series, stock, quote, now, onChanged, notify }: Pro
         />
       </div>
 
-      <div className="px-3 pt-3">
-        <CurveChart curve={curve} raw={raw} markers={markers} />
-      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0">
+          <div className="px-3 pt-3">
+            <CurveChart curve={curve} raw={raw} markers={markers} />
+          </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead>
-            <tr className="border-y border-line text-left text-xs uppercase tracking-wider text-muted">
-              <th className="px-5 py-2 font-normal">{stock.symbol} at or above</th>
-              <th className="px-3 py-2 font-normal">vs now</th>
-              <th className="px-3 py-2 font-normal">Crowd says YES</th>
-              <th className="px-3 py-2 text-right font-normal">Pool</th>
-              <th className="px-5 py-2 text-right font-normal">
-                {phase === "open" ? (
-                  <span className="inline-flex items-center gap-2 normal-case tracking-normal">
-                    Stake
-                    <input
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      inputMode="decimal"
-                      aria-label={`Stake in ${COLLATERAL_SYMBOL}`}
-                      className="num w-20 rounded-md border border-line bg-bg px-2 py-1 text-right text-text outline-none focus:border-faint"
-                    />
-                    {COLLATERAL_SYMBOL}
-                  </span>
-                ) : (
-                  "Result"
-                )}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...series.markets].reverse().map((m) => {
-              const p = impliedProbability(m);
-              return (
-                <tr key={m.address} className="border-b border-line/60 last:border-0">
-                  <td className="px-5 py-3">
-                    <a href={explorerAddress(m.address)} target="_blank" rel="noreferrer" className="num font-medium hover:text-bell">
-                      {usd(m.strike)}
-                    </a>
-                  </td>
-                  <td className="num px-3 py-3 text-muted">{spot !== undefined ? pct(m.strike / spot - 1, 2) : "—"}</td>
-                  <td className="px-3 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-28 overflow-hidden rounded-full bg-no-soft">
-                        <div className="h-full bg-yes" style={{ width: `${(p ?? 0) * 100}%` }} />
-                      </div>
-                      <span className="num w-10 text-right">{p === null ? "—" : `${Math.round(p * 100)}%`}</span>
-                    </div>
-                  </td>
-                  <td className="num px-3 py-3 text-right text-muted">{tokens(m.yesPool + m.noPool, 0)}</td>
-                  <td className="px-5 py-3 text-right">
-                    {phase === "open" ? (
-                      <div className="inline-flex gap-2">
-                        {(["yes", "no"] as const).map((side) => (
-                          <button
-                            key={side}
-                            disabled={!!busy}
-                            onClick={() => bet(m, side)}
-                            className={`num rounded-md px-3 py-1.5 text-xs font-medium transition disabled:opacity-40 ${
-                              side === "yes" ? "bg-yes-soft text-yes hover:bg-yes/25" : "bg-no-soft text-no hover:bg-no/25"
-                            }`}
-                            title={raw_amount ? `Pays ${tokens(previewPayout(m, side, raw_amount))} if ${side.toUpperCase()} wins, at current pools` : undefined}
-                          >
-                            {busy === `${m.address}:${side}` ? "…" : side.toUpperCase()}
-                            {raw_amount ? ` → ${tokens(previewPayout(m, side, raw_amount), 1)}` : ""}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <Outcome m={m} />
-                    )}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-y border-line text-left text-xs uppercase tracking-wider text-muted">
+                  <th className="px-3 py-2 font-normal sm:px-5">{stock.symbol} at or above</th>
+                  <th className="px-2 py-2 text-right font-normal">Chance</th>
+                  <th className="hidden px-3 py-2 text-right font-normal sm:table-cell">Pool</th>
+                  <th className="px-3 py-2 text-right font-normal sm:px-5">{phase === "open" ? "Buy" : "Result"}</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {[...series.markets].reverse().map((m) => {
+                  const p = impliedProbability(m);
+                  return (
+                    <tr
+                      key={m.address}
+                      className={`border-b border-line/60 last:border-0 ${picked?.address === m.address ? "bg-panel-2" : ""}`}
+                    >
+                      <td className="px-3 py-3 sm:px-5">
+                        <a href={explorerAddress(m.address)} target="_blank" rel="noreferrer" className="num font-medium hover:text-bell">
+                          {usd(m.strike)}
+                        </a>
+                        <div className="num text-xs text-faint">{spot !== undefined ? `${pct(m.strike / spot - 1, 2)} vs now` : ""}</div>
+                      </td>
+                      <td className="num px-2 py-3 text-right text-lg sm:text-xl">{p === null ? "—" : `${Math.round(p * 100)}%`}</td>
+                      <td className="num hidden px-3 py-3 text-right text-xs text-muted sm:table-cell">{tokens(m.yesPool + m.noPool, 0)}</td>
+                      <td className="px-3 py-3 text-right sm:px-5">
+                        {phase === "open" ? (
+                          <div className="inline-flex gap-1.5 sm:gap-2">
+                            {(["yes", "no"] as const).map((side) => {
+                              const on = picked?.address === m.address && pick?.side === side;
+                              return (
+                                <button
+                                  key={side}
+                                  onClick={() => setPick({ address: m.address, side })}
+                                  aria-pressed={on}
+                                  className={`num w-[4.5rem] rounded-md py-2 text-xs font-medium transition sm:w-24 ${
+                                    side === "yes"
+                                      ? on ? "bg-yes text-bg" : "bg-yes-soft text-yes hover:bg-yes/25"
+                                      : on ? "bg-no text-bg" : "bg-no-soft text-no hover:bg-no/25"
+                                  }`}
+                                >
+                                  {side === "yes" ? "Yes" : "No"} {cents(sidePrice(m, side))}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <Outcome m={m} />
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <aside className="flex flex-col gap-4 border-t border-line p-4 lg:border-l lg:border-t-0">
+          {picked && pick ? (
+            <div className="fixed inset-x-0 bottom-0 z-40 max-h-[85vh] overflow-y-auto p-3 lg:static lg:z-auto lg:max-h-none lg:p-0">
+              <TradeTicket
+                key={picked.address}
+                market={picked}
+                side={pick.side}
+                stock={stock}
+                balance={balance}
+                onSide={(side) => setPick({ address: picked.address, side })}
+                onClose={() => setPick(null)}
+                onChanged={onChanged}
+                notify={notify}
+              />
+            </div>
+          ) : (
+            phase === "open" && (
+              <p className="rounded-lg border border-dashed border-line px-4 py-3 text-xs text-muted">
+                Pick Yes or No on a strike to open the ticket.
+              </p>
+            )
+          )}
+          <SeriesRules series={series} stock={stock} />
+        </aside>
       </div>
 
       {phase === "due" && (

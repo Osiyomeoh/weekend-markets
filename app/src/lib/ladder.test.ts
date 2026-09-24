@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   coherentCurve,
+  currentPayout,
   groupSeries,
   impliedMedian,
   impliedProbability,
@@ -22,6 +23,8 @@ function market(over: Partial<MarketView>): MarketView {
     lockTs: 10,
     resolveTs: 20,
     resolveWindowSecs: 60,
+    voidDelaySecs: 3600,
+    maxConfBps: 100,
     yesPool: 0n,
     noPool: 0n,
     openPositions: 0,
@@ -138,5 +141,18 @@ describe("seeding model", () => {
   it("collapses to 0/1 at expiry", () => {
     expect(modelProbabilityAbove(100, 99, 0.5, 0)).toBe(1);
     expect(modelProbabilityAbove(100, 101, 0.5, 0)).toBe(0);
+  });
+});
+
+describe("currentPayout", () => {
+  it("pays the stake's share of the whole pool", () => {
+    const m = market({ yesPool: 300n, noPool: 100n });
+    expect(currentPayout(m, "no", 50n)).toBe(200n);
+    expect(currentPayout(m, "yes", 150n)).toBe(200n);
+  });
+
+  it("is zero without a stake or with an empty side", () => {
+    expect(currentPayout(market({ yesPool: 300n, noPool: 0n }), "no", 0n)).toBe(0n);
+    expect(currentPayout(market({ yesPool: 0n, noPool: 0n }), "yes", 10n)).toBe(0n);
   });
 });

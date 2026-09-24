@@ -16,6 +16,8 @@ function market(strike: number, yes: number, no: number, over: Partial<MarketVie
     lockTs: 10,
     resolveTs: 20,
     resolveWindowSecs: 60,
+    voidDelaySecs: 3600,
+    maxConfBps: 100,
     yesPool: $(yes),
     noPool: $(no),
     openPositions: 1,

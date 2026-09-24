@@ -10,6 +10,7 @@ import { groupSeries } from "@/lib/ladder";
 import { STOCKS } from "@/lib/stocks";
 
 import { CoverPanel } from "./CoverPanel";
+import { GetStarted } from "./GetStarted";
 import { PositionsPanel } from "./PositionsPanel";
 import { SeriesCard, seriesPhase } from "./SeriesCard";
 
@@ -33,6 +34,9 @@ export function App() {
   const [fauceting, setFauceting] = useState(false);
 
   const series = useMemo(() => groupSeries(markets.data ?? []), [markets.data]);
+  const marketByAddress = new Map((markets.data ?? []).map((m) => [m.address, m]));
+  const myMarkets = (positions.data ?? []).flatMap((p) => marketByAddress.get(p.market) ?? []);
+  const nextSettle = series.find((s) => s.resolveTs > now && s.markets.some((m) => m.status === "open"))?.resolveTs ?? null;
   const listed = STOCKS.filter((s) => series.some((x) => x.feedId === s.equityFeedId));
   const [picked, setPicked] = useState<string | null>(null);
   const symbol = picked ?? listed[0]?.symbol ?? null;
@@ -119,6 +123,16 @@ export function App() {
         </p>
       </section>
 
+      <GetStarted
+        connected={!!wallet}
+        funded={(balance.data ?? 0n) > 0n}
+        fauceting={fauceting}
+        hasOpen={myMarkets.some((m) => m.status === "open")}
+        claimable={myMarkets.filter((m) => m.status !== "open").length}
+        nextSettle={nextSettle}
+        onFaucet={faucet}
+      />
+
       <nav className="flex flex-wrap gap-2" aria-label="Stocks">
         {STOCKS.map((s) => {
           const q = prices.data?.[s.equityFeedId];
@@ -146,16 +160,18 @@ export function App() {
       )}
 
       {stock && (
-        <CoverPanel
-          stock={stock}
-          series={stockSeries}
-          quote={prices.data?.[stock.equityFeedId]}
-          holdings={holdings.data ?? []}
-          balance={balance.data}
-          now={now}
-          onChanged={refreshAll}
-          notify={notify}
-        />
+        <div id="cover" className="scroll-mt-4">
+          <CoverPanel
+            stock={stock}
+            series={stockSeries}
+            quote={prices.data?.[stock.equityFeedId]}
+            holdings={holdings.data ?? []}
+            balance={balance.data}
+            now={now}
+            onChanged={refreshAll}
+            notify={notify}
+          />
+        </div>
       )}
 
       {stock && stockSeries.length > 0 && (
@@ -171,6 +187,7 @@ export function App() {
             series={s}
             stock={stock}
             quote={prices.data?.[stock.equityFeedId]}
+            balance={balance.data}
             now={now}
             onChanged={refreshAll}
             notify={notify}
@@ -185,6 +202,7 @@ export function App() {
       />
 
       <HowItWorks />
+      <WhySolana />
 
       <footer className="flex flex-wrap justify-between gap-2 border-t border-line pt-4 text-xs text-faint">
         <span>
@@ -234,6 +252,27 @@ function HowItWorks() {
           <p className="mt-1 text-xs leading-relaxed text-muted">{d}</p>
         </div>
       ))}
+    </section>
+  );
+}
+
+function WhySolana() {
+  const points = [
+    ["The holders are already here", "xStocks and Ondo tokenized stocks are Solana tokens. Cover reads what your wallet holds and settles in dollars on the same chain."],
+    ["The price is verified, not trusted", "The signed Pyth update is posted and checked by the program in the same transaction set. No proposer, no committee, no dispute window."],
+    ["Settling costs about a cent", "A settlement is a couple of transactions, final in seconds after the bell. That makes a fresh ladder per stock, per session, worth running."],
+  ];
+  return (
+    <section aria-label="Why Solana" className="rounded-xl border border-line bg-panel px-5 py-4">
+      <div className="text-xs uppercase tracking-wider text-bell">Why Solana</div>
+      <div className="mt-2 grid gap-4 sm:grid-cols-3">
+        {points.map(([t, d]) => (
+          <div key={t}>
+            <div className="text-sm font-medium">{t}</div>
+            <p className="mt-1 text-xs leading-relaxed text-muted">{d}</p>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

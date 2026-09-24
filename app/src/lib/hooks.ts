@@ -111,21 +111,27 @@ export function useHoldings() {
   );
 }
 
-/** Signs with the connected wallet, sends, and waits for confirmation. */
+/**
+ * Signs with the connected wallet, sends, and waits for confirmation. We only
+ * ask the wallet to sign and broadcast ourselves, so the transaction reaches
+ * devnet even when the wallet itself is pointed at mainnet.
+ */
 export function useSendIxs() {
   const { connection } = useConnection();
-  const { publicKey, sendTransaction } = useWallet();
+  const { publicKey, sendTransaction, signTransaction } = useWallet();
   return useCallback(
     async (ixs: TransactionInstruction[]): Promise<string> => {
       if (!publicKey) throw new Error("Connect a wallet first");
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
       const tx = new Transaction({ feePayer: publicKey, blockhash, lastValidBlockHeight }).add(...ixs);
-      const signature = await sendTransaction(tx, connection);
+      const signature = signTransaction
+        ? await connection.sendRawTransaction((await signTransaction(tx)).serialize(), { preflightCommitment: "confirmed" })
+        : await sendTransaction(tx, connection);
       const res = await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
       if (res.value.err) throw new Error(`Transaction failed: ${JSON.stringify(res.value.err)}`);
       return signature;
     },
-    [connection, publicKey, sendTransaction],
+    [connection, publicKey, sendTransaction, signTransaction],
   );
 }
 

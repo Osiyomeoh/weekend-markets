@@ -7,6 +7,8 @@ export type Stock = {
   name: string;
   /** Pyth `Equity.US.<SYM>/USD`: trades 09:30-16:00 ET; markets settle on this. */
   equityFeedId: string;
+  /** Pyth symbol of that feed, e.g. Equity.US.TSLA/USD. */
+  pythSymbol: string;
   /** Pyth `Crypto.<SYM>X/USD`: the xStock, priced 24/7 on Solana. */
   xstockFeedId: string;
   /** Rough annualized volatility, used only to seed opening odds. */
@@ -22,6 +24,7 @@ export const STOCKS: Stock[] = [
     symbol: "NVDA",
     name: "NVIDIA",
     equityFeedId: "0xb1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593",
+    pythSymbol: "Equity.US.NVDA/USD",
     xstockFeedId: "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f",
     annualVol: 0.5,
     tick: 1,
@@ -34,6 +37,7 @@ export const STOCKS: Stock[] = [
     symbol: "AAPL",
     name: "Apple",
     equityFeedId: "0x49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688",
+    pythSymbol: "Equity.US.AAPL/USD",
     xstockFeedId: "0x978e6cc68a119ce066aa830017318563a9ed04ec3a0a6439010fc11296a58675",
     annualVol: 0.25,
     tick: 1,
@@ -46,6 +50,7 @@ export const STOCKS: Stock[] = [
     symbol: "TSLA",
     name: "Tesla",
     equityFeedId: "0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1",
+    pythSymbol: "Equity.US.TSLA/USD",
     xstockFeedId: "0x47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362",
     annualVol: 0.6,
     tick: 2.5,
@@ -58,6 +63,7 @@ export const STOCKS: Stock[] = [
     symbol: "SPY",
     name: "S&P 500 ETF",
     equityFeedId: "0x19e09bb805456ada3979a7d1cbb4b6d63babc3a0f8e8a9509f68afa5c4c11cd5",
+    pythSymbol: "Equity.US.SPY/USD",
     xstockFeedId: "0x2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14",
     annualVol: 0.15,
     tick: 1,
@@ -67,6 +73,11 @@ export const STOCKS: Stock[] = [
     ],
   },
 ];
+
+/** Pyth's public page for a feed: live price, history and publishers. */
+export function pythFeedUrl(stock: Stock): string {
+  return `https://pythdata.app/explore/${encodeURIComponent(stock.pythSymbol)}`;
+}
 
 export function normalizeFeedId(id: string): string {
   return (id.startsWith("0x") ? id : `0x${id}`).toLowerCase();
