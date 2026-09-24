@@ -12,8 +12,11 @@ import { fetchMarkets, fetchPositions, getProgram, PositionView } from "./progra
 export type Quote = { feedId: string; price: number; conf: number; publishTime: number };
 export type Holding = { stock: string; symbol: string; issuer: string; mint: string; shares: number };
 
+/** A polled value: `data` is null until the first load. */
+export type Poll<T> = { data: T | null; error: string | null; refresh: () => Promise<void> };
+
 /** Re-runs `fn` every `ms`, and immediately whenever `deps` change. */
-function usePoll<T>(fn: () => Promise<T>, ms: number, deps: unknown[]) {
+function usePoll<T>(fn: () => Promise<T>, ms: number, deps: unknown[]): Poll<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fnRef = useRef(fn);
@@ -65,14 +68,14 @@ export function useMarkets() {
   return usePoll(() => fetchMarkets(program, OPERATOR), 8_000, [program]);
 }
 
-export function usePositions() {
+/** Positions held by `owner` (the connected wallet, or any address for a read-only view). */
+export function usePositions(owner: PublicKey | null) {
   const { connection } = useConnection();
-  const { publicKey } = useWallet();
   const program = useMemo(() => getProgram(connection), [connection]);
   return usePoll(
-    async (): Promise<PositionView[]> => (publicKey ? fetchPositions(program, publicKey) : []),
+    async (): Promise<PositionView[]> => (owner ? fetchPositions(program, owner) : []),
     8_000,
-    [program, publicKey?.toBase58()],
+    [program, owner?.toBase58()],
   );
 }
 

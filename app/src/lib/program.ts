@@ -153,6 +153,16 @@ export async function claimIxs(
   ];
 }
 
+/** Claims several settled positions: one token-account check, then a claim per market. */
+export async function claimManyIxs(
+  program: Program<WeekendMarkets>,
+  args: { markets: PublicKey[]; owner: PublicKey },
+): Promise<TransactionInstruction[]> {
+  if (args.markets.length === 0) return [];
+  const each = await Promise.all(args.markets.map((market) => claimIxs(program, { market, owner: args.owner })));
+  return [each[0][0], ...each.map((ixs) => ixs[1])];
+}
+
 export type CreateMarketArgs = {
   creator: PublicKey;
   marketId: bigint;

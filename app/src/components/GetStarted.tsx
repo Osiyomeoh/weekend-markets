@@ -1,6 +1,7 @@
 "use client";
 
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { useRouter } from "next/navigation";
 
 import { COLLATERAL_SYMBOL } from "@/lib/config";
 import { etTime } from "@/lib/format";
@@ -19,7 +20,8 @@ type Props = {
 export function GetStarted({ connected, funded, fauceting, hasOpen, claimable, nextSettle, onFaucet }: Props) {
   const { setVisible } = useWalletModal();
   const toCover = () => document.getElementById("cover")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  const toPositions = () => document.getElementById("positions")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const router = useRouter();
+  const toPortfolio = () => router.push("/portfolio");
 
   const steps = [
     {
@@ -47,7 +49,7 @@ export function GetStarted({ connected, funded, fauceting, hasOpen, claimable, n
           ? `${claimable} position${claimable > 1 ? "s" : ""} settled and ready to claim.`
           : `Settles on the first Pyth print${nextSettle ? ` at ${etTime(nextSettle, false)}` : ""}. Then claim in one click.`,
       done: false,
-      action: claimable > 0 ? { label: "Claim", onClick: toPositions } : null,
+      action: claimable > 0 ? { label: "Claim", onClick: toPortfolio } : null,
     },
   ];
   const current = steps.findIndex((s) => !s.done);

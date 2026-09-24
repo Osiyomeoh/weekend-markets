@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { settleMarkets } from "@/lib/client/settle";
 import { COLLATERAL_SYMBOL, explorerAddress } from "@/lib/config";
 import { countdown, etTime, pct, tokens, usd } from "@/lib/format";
 import { Quote } from "@/lib/hooks";
@@ -55,18 +56,8 @@ export function SeriesCard({ series, stock, quote, balance, now, onChanged, noti
   async function settle() {
     setBusy("settle");
     try {
-      let last: string | undefined;
-      for (const m of series.markets.filter((m) => m.status === "open")) {
-        const res = await fetch("/api/settle", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ market: m.address }),
-        });
-        const body = await res.json();
-        if (!res.ok) throw new Error(body.error);
-        last = body.signatures.at(-1);
-      }
-      notify(`${stock.symbol} ladder settled from Pyth`, last);
+      const sig = await settleMarkets(series.markets.filter((m) => m.status === "open").map((m) => m.address));
+      notify(`${stock.symbol} ladder settled from Pyth`, sig);
       onChanged();
     } catch (e) {
       notify((e as Error).message);

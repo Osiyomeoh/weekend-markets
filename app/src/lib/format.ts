@@ -39,6 +39,16 @@ export function etTime(unix: number, withSeconds = true): string {
   return `${s} ET`;
 }
 
+/** e.g. "Mon, Sep 28" in New York time. */
+export function etDate(unix: number): string {
+  return new Date(unix * 1000).toLocaleDateString("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export function countdown(seconds: number): string {
   if (seconds <= 0) return "now";
   const d = Math.floor(seconds / 86_400);
