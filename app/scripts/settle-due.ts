@@ -7,7 +7,6 @@
  */
 import "./env";
 
-import { Wallet } from "@anchor-lang/core";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { parseArgs } from "node:util";
 
@@ -17,12 +16,13 @@ import { settleMarket } from "../src/lib/server/keeper";
 import { loadOperator } from "../src/lib/server/operator";
 import { NotYetPublished } from "../src/lib/server/pyth";
 import { stockByEquityFeed } from "../src/lib/stocks";
+import { keypairWallet } from "../src/lib/server/keypairWallet";
 
 const { values: args } = parseArgs({ options: { watch: { type: "boolean", default: false } } });
 
 async function pass(connection: Connection) {
   const operator = loadOperator();
-  const program = getProgram(connection, new Wallet(operator));
+  const program = getProgram(connection, keypairWallet(operator));
   const now = Date.now() / 1000;
   const due = (await fetchMarkets(program, OPERATOR)).filter(
     (m) =>

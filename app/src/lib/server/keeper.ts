@@ -1,4 +1,3 @@
-import { Wallet } from "@anchor-lang/core";
 import {
   PRO_COMPATIBLE_PUSH_ORACLE_PROGRAM_ID,
   PRO_COMPATIBLE_RECEIVER_PROGRAM_ID,
@@ -10,6 +9,7 @@ import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import { fetchMarket, getProgram, resolveIx, voidIx } from "../program";
 import { MarketView } from "../ladder";
 import { NoPrintInWindow, settlementUpdate } from "./pyth";
+import { keypairWallet } from "./keypairWallet";
 
 export type SettleResult =
   | { action: "resolved"; signatures: string[]; market: MarketView }
@@ -27,7 +27,7 @@ function nowSecs(): number {
  * Anyone can do this; the operator just pays the fees so users don't have to.
  */
 export async function settleMarket(connection: Connection, operator: Keypair, market: PublicKey): Promise<SettleResult> {
-  const wallet = new Wallet(operator);
+  const wallet = keypairWallet(operator);
   const program = getProgram(connection, wallet);
   const m = await fetchMarket(program, market);
   if (m.status !== "open") throw new Error(`market is already ${m.status}`);
@@ -71,7 +71,7 @@ export async function settleMarket(connection: Connection, operator: Keypair, ma
 }
 
 export async function voidMarket(connection: Connection, operator: Keypair, market: PublicKey): Promise<SettleResult> {
-  const program = getProgram(connection, new Wallet(operator));
+  const program = getProgram(connection, keypairWallet(operator));
   const tx = new Transaction().add(await voidIx(program, market));
   const sig = await program.provider.sendAndConfirm!(tx, [operator], { commitment: "confirmed" });
   return { action: "voided", signatures: [sig], market: await fetchMarket(program, market) };

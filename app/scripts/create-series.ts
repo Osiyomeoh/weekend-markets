@@ -18,7 +18,6 @@
  */
 import "./env";
 
-import { Wallet } from "@anchor-lang/core";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { ComputeBudgetProgram, Connection, Transaction } from "@solana/web3.js";
 import { parseArgs } from "node:util";
@@ -30,6 +29,7 @@ import { drip } from "../src/lib/server/faucet";
 import { loadOperator } from "../src/lib/server/operator";
 import { latestQuotes } from "../src/lib/server/pyth";
 import { STOCKS } from "../src/lib/stocks";
+import { keypairWallet } from "../src/lib/server/keypairWallet";
 
 const { values: args } = parseArgs({
   options: {
@@ -84,7 +84,7 @@ function roundToTick(x: number, tick: number): number {
 async function main() {
   const connection = new Connection(RPC_URL, "confirmed");
   const operator = loadOperator();
-  const program = getProgram(connection, new Wallet(operator));
+  const program = getProgram(connection, keypairWallet(operator));
 
   const resolveTs = resolveTime();
   const lockTs = resolveTs - Math.round(Number(args["lock-before"]) * 60);
