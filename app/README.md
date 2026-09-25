@@ -59,6 +59,7 @@ npm test                                      # ladder and cover math
 npm run setup:devnet                          # operator keypair, SOL, test USDC mint
 npm run series                                # open the ladder for the next opening bell
 npx tsx scripts/add-liquidity.ts --depth 5000 # deepen open pools at current odds
+npx tsx scripts/requote.ts --send             # move open ladders to the current pricing model
 npm run tick                                  # one keeper pass: settle what's due, open the next ladder
 npm run keeper                                # the same pass every minute
 npm run status                                # every ladder, pools and outcomes

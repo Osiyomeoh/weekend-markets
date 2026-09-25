@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { backtestCover, gapModel, ladderOdds, MIN_HISTORY, openingHistory, seedSplit } from "./gapModel";
+import {
+  backtestCover,
+  gapModel,
+  ladderOdds,
+  MIN_HISTORY,
+  openingHistory,
+  seedSplit,
+  sessionYearsBetween,
+} from "./gapModel";
 import { modelProbabilityAbove } from "./ladder";
+import { nyTimestamp } from "./sessions";
 import { STOCKS } from "./stocks";
 
 const TSLA = STOCKS.find((s) => s.symbol === "TSLA")!;
@@ -46,6 +55,24 @@ describe("gapModel", () => {
     const k = 375 * Math.exp(-0.08);
     const normal = modelProbabilityAbove(375, k, model.sd, 1);
     expect(1 - model.probabilityAbove(375, k)).toBeGreaterThan(1 - normal);
+  });
+
+  it("adds the rest of a session: cover bought mid-session is exposed to it too", () => {
+    const history = openingHistory(TSLA);
+    const atClose = gapModel(TSLA, WEEKNIGHT, history);
+    const midSession = gapModel(TSLA, WEEKNIGHT, history, 3 / (252 * 6.5));
+    expect(midSession.sd).toBeGreaterThan(atClose.sd);
+    expect(1 - midSession.probabilityAbove(375, 360)).toBeGreaterThan(1 - atClose.probabilityAbove(375, 360));
+    expect(gapModel(TSLA, WEEKNIGHT, history, 0).sd).toBe(atClose.sd);
+  });
+
+  it("counts regular-session time only", () => {
+    const fri = { y: 2026, m: 9, d: 25 };
+    const mon = { y: 2026, m: 9, d: 28 };
+    const hours = (from: number, to: number) => sessionYearsBetween(from, to) * 252 * 6.5;
+    expect(hours(nyTimestamp(fri, 12, 0), nyTimestamp(mon, 9, 30))).toBeCloseTo(4, 6);
+    expect(hours(nyTimestamp(fri, 16, 0), nyTimestamp(mon, 9, 30))).toBe(0);
+    expect(hours(nyTimestamp(fri, 9, 30), nyTimestamp(fri, 16, 0))).toBeCloseTo(6.5, 6);
   });
 
   it("splits a seed like the keeper always has", () => {

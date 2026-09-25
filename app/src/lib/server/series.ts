@@ -6,7 +6,7 @@ import {
 import { ComputeBudgetProgram, Connection, Keypair, Transaction } from "@solana/web3.js";
 
 import { COLLATERAL_DECIMALS, COLLATERAL_MINT } from "../config";
-import { gapModel, ladderOdds, openingHistory, seedSplit } from "../gapModel";
+import { gapModel, ladderOdds, openingHistory, seedSplit, sessionYearsBetween } from "../gapModel";
 import { DEFAULT_LADDER, strikeToOnChain } from "../ladder";
 import { createMarketIx, getProgram, marketPda, placeBetIxs } from "../program";
 import { Stock, STOCKS } from "../stocks";
@@ -55,8 +55,10 @@ export async function createLadder(
   if (lockTs <= Date.now() / 1000 + 30) throw new Error("lock time must be at least 30s in the future");
   if (spec.strikes < 1 || spec.strikes % 2 === 0) throw new Error("strikes must be odd");
 
-  const years = (resolveTs - Date.now() / 1000) / (365 * 86_400);
-  const odds = ladderOdds(gapModel(stock, years, openingHistory(stock)), spot, stock.tick, spec.strikes);
+  const now = Date.now() / 1000;
+  const years = (resolveTs - now) / (365 * 86_400);
+  const model = gapModel(stock, years, openingHistory(stock), sessionYearsBetween(now, resolveTs));
+  const odds = ladderOdds(model, spot, stock.tick, spec.strikes);
   const seed = BigInt(Math.round(spec.seed * 10 ** COLLATERAL_DECIMALS));
 
   const plans = [];

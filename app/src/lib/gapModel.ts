@@ -14,7 +14,7 @@
 import tslaOpenings from "../data/tsla-gaps.json";
 import { coverPayout, coverPlan, defaultCoverRange } from "./cover";
 import { DEFAULT_LADDER, MarketView, modelProbabilityAbove, normCdf } from "./ladder";
-import { nyTimestamp } from "./sessions";
+import { nyTimestamp, usSession } from "./sessions";
 import { Stock } from "./stocks";
 
 /** One close-to-open move, from Pyth prints (scripts/gaps.ts). */
@@ -30,6 +30,21 @@ export function openingHistory(stock: Pick<Stock, "symbol">): Opening[] {
   return HISTORY[stock.symbol] ?? [];
 }
 
+/** A year of regular sessions: 252 days of 6.5 hours. */
+const SESSION_SECS_PER_YEAR = 252 * 6.5 * 3600;
+
+/**
+ * Regular-session time between two moments, in years of regular sessions
+ * (5-minute resolution). The history prices the move from the close to the
+ * open; cover bought during a session is also exposed to the rest of it.
+ */
+export function sessionYearsBetween(from: number, to: number): number {
+  const step = 300;
+  let secs = 0;
+  for (let t = Math.ceil(from / step) * step; t < to; t += step) if (usSession(t) === "regular") secs += step;
+  return secs / SESSION_SECS_PER_YEAR;
+}
+
 export type GapModel = {
   source: "history" | "lognormal";
   /** Standard deviation of the log move from now to the open. */
@@ -42,10 +57,17 @@ export type GapModel = {
  * least MIN_HISTORY openings: their log moves, recentered to average zero (no
  * drift, like the lognormal: it prices the size of moves, not a direction, but
  * keeps their shape, many small rises and rare large drops) and smoothed with
- * a Gaussian kernel (Silverman's bandwidth). Otherwise a driftless lognormal
- * over `years`.
+ * a Gaussian kernel (Silverman's bandwidth). Regular-session time still to
+ * run before the open (`sessionYears`, from sessionYearsBetween) adds its
+ * variance at the stock's annual volatility, widening every kernel. Otherwise
+ * a driftless lognormal over `years`.
  */
-export function gapModel(stock: Pick<Stock, "annualVol">, years: number, history: readonly Opening[]): GapModel {
+export function gapModel(
+  stock: Pick<Stock, "annualVol">,
+  years: number,
+  history: readonly Opening[],
+  sessionYears = 0,
+): GapModel {
   if (history.length < MIN_HISTORY) {
     return {
       source: "lognormal",
@@ -56,8 +78,10 @@ export function gapModel(stock: Pick<Stock, "annualVol">, years: number, history
   const moves = history.map((o) => Math.log(o.open / o.close));
   const mean = moves.reduce((a, m) => a + m, 0) / moves.length;
   const centered = moves.map((m) => m - mean);
-  const sd = Math.sqrt(centered.reduce((a, m) => a + m * m, 0) / (centered.length - 1));
-  const bandwidth = Math.max(0.9 * sd * centered.length ** -0.2, 0.002);
+  const gapSd = Math.sqrt(centered.reduce((a, m) => a + m * m, 0) / (centered.length - 1));
+  const sessionVar = stock.annualVol ** 2 * Math.max(sessionYears, 0);
+  const bandwidth = Math.sqrt(Math.max(0.9 * gapSd * centered.length ** -0.2, 0.002) ** 2 + sessionVar);
+  const sd = Math.sqrt(gapSd ** 2 + sessionVar);
   return {
     source: "history",
     sd,

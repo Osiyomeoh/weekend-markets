@@ -28,7 +28,7 @@ The stock they track has a **32.5-hour regular session each week**. Outside it, 
 
 **For holders: gap cover.** Enter how many shares you hold, or connect a wallet and the app reads your TSLAx and TSLAon balance from mainnet (read-only). Pick where cover starts and how far down it goes. You see the cost, the most it can pay, and a chart of your P&L at the opening print with and without cover. One transaction buys it. When the bell rings, the market settles on the first Pyth price and you claim.
 
-Example from the live app: covering 10 TSLA at $378.74 down to $347.50 costs **64.31 tUSDC (1.7% of the position)** and pays up to **312.35** if TSLA opens below $347.50.
+Example from the live app, Friday afternoon: covering 10 TSLA at $371.54 through the weekend, from $362.50 down to $347.50, costs **27.21 tUSDC (0.7% of the position)** and pays up to **240.35** if TSLA opens Monday below $347.50.
 
 **For everyone else: the other side.** Every strike is a YES/NO pool: "TSLA at or above $362.50 at Monday's open?" It's quoted in cents like any prediction market, and anyone can trade it. Together, the pools are the crowd's forecast of the opening price, drawn as a curve with its 50% level.
 
@@ -57,6 +57,7 @@ The backtest caught our own pricing charging 2.6 times too much. The lognormal t
 
 - the log moves are recentered to average zero, since the model prices the size of a move, not its direction;
 - they're smoothed with a Gaussian kernel rather than fitted to a normal curve, so a tail seen once (−8.8% on 23 July) keeps its weight;
+- cover bought during a session is also exposed to the rest of it, so the regular-session hours left before the close add their variance (at the stock's annual volatility);
 - stocks with fewer than 10 recorded openings fall back to the lognormal.
 
 Cover paid on the 6 openings that fell more than 1.3%, and on none of the up opens. It has a deductible and a cap, so across those nights it paid $335 of the $643 the shares lost. `cover_backtest` gives an agent the same table.
@@ -193,8 +194,8 @@ flowchart TB
 - **MCP server for agents:** hosted at `/mcp` (9 tools, no keys) and runnable locally with the agent's own wallet (12 tools, a devnet-only check and two spending limits), with smoke tests that drive both through the MCP protocol.
 - **Solana Action (Blink) for cover:** a live quote on GET and a ready-to-sign transaction on POST, funding new wallets in the same call.
 - **Always-on keeper:** settles due ladders and opens the next opening-bell ladder every 10 minutes (GitHub Actions calling a secured route).
-- **TypeScript client, keeper and operator scripts:** `series` (open a ladder), `add-liquidity`, `tick` and `keeper` (one pass, or every minute), `status`, and `smoke` (runs the whole user flow against a deployed app with a fresh wallet).
-- **51 TypeScript unit tests** for the ladder and cover math, the opening-history pricing and its backtest (including a no-look-ahead check), and the US session calendar (daylight saving, weekends, holidays from Pyth's schedule).
+- **TypeScript client, keeper and operator scripts:** `series` (open a ladder), `add-liquidity`, `requote` (move open ladders to the current pricing), `tick` and `keeper` (one pass, or every minute), `status`, and `smoke` (runs the whole user flow against a deployed app with a fresh wallet).
+- **53 TypeScript unit tests** for the ladder and cover math, the opening-history pricing and its backtest (including a no-look-ahead check), and the US session calendar (daylight saving, weekends, holidays from Pyth's schedule).
 
 ## Limits
 
@@ -203,7 +204,7 @@ These are the honest ones:
 - **Devnet and test money.** Stakes are in tUSDC, a test token our faucet mints. Nothing here is real money.
 - **TSLA only, for now.** Our Pyth API key is entitled to `Equity.US.TSLA/USD`. NVDA, AAPL and SPY, and the xStock and Ondo 24/7 feeds, are wired in and appear as soon as those feeds are entitled.
 - **Liquidity is seeded.** The operator seeds each strike with 5,000 tUSDC at odds from the stock's opening history. That stands in for market makers, and it's a real counterparty that can lose. Seeding at fair odds leaves it no margin; a real market maker would add one.
-- **A short history.** Pyth's TSLA history starts on 22 July 2026, so the backtest covers 36 openings. Ladders opened before this change were seeded at the launch pricing, including Monday's.
+- **A short history.** Pyth's TSLA history starts on 22 July 2026, so the backtest covers 36 openings. Monday's ladder, opened before this change, was re-quoted to it by adding operator stake to the underpriced side of each strike ([`app/scripts/requote.ts`](app/scripts/requote.ts)).
 - **No early exit.** Pools are parimutuel, so a position is held to settlement, and the payout shown is an estimate until betting closes.
 - **Claims are one click, not automatic.** `claim` requires the owner's signature.
 - **What "the open" means.** Markets settle on the first Pyth `Equity.US` print at or after 09:30 ET. That is Pyth's aggregate price, not the exchange's official opening auction. The keeper skips exchange holidays using Pyth's market-hours schedule; if an unscheduled halt leaves no print in the window, the market voids and refunds.
