@@ -10,12 +10,14 @@ import {
   Poll,
   PositionView,
   Quote,
+  TokenPrice,
   useHoldings,
   useMarkets,
   useNow,
   usePositions,
   usePrices,
   useTokenBalance,
+  useTokenPrices,
   useWalletKey,
 } from "@/lib/hooks";
 import { groupSeries, MarketView, Series } from "@/lib/ladder";
@@ -27,6 +29,8 @@ type AppState = {
   now: number;
   wallet: PublicKey | null;
   prices: Poll<Record<string, Quote>>;
+  /** Tokenized-stock prices on Solana by mint (display only). */
+  tokenPrices: Poll<Record<string, TokenPrice>>;
   markets: Poll<MarketView[]>;
   positions: Poll<PositionView[]>;
   balance: Poll<bigint | null>;
@@ -63,6 +67,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const now = useNow();
   const wallet = useWalletKey();
   const prices = usePrices();
+  const tokenPrices = useTokenPrices();
   const markets = useMarkets();
   const positions = usePositions(wallet);
   const balance = useTokenBalance();
@@ -115,6 +120,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         now,
         wallet,
         prices,
+        tokenPrices,
         markets,
         positions,
         balance,

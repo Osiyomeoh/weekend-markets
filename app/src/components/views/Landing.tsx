@@ -10,6 +10,7 @@ import { pythFeedUrl, STOCKS } from "@/lib/stocks";
 
 import { useApp } from "../AppState";
 import { CurveChart } from "../CurveChart";
+import { GapNow } from "../GapNow";
 import { PayoffChart } from "../PayoffChart";
 import { seriesPhase } from "../SeriesCard";
 
@@ -57,9 +58,10 @@ export function Landing() {
               Hedge the hours Wall Street is closed.
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-relaxed text-muted sm:text-lg">
-              TSLAx and TSLAon trade around the clock on Solana. Tesla trades 32.5 hours a week, and everything in
-              between lands on the next opening print. Weekend Markets pays you if it opens lower, settled on-chain by
-              the first Pyth price after the bell.
+              TSLAx and TSLAon trade around the clock on Solana. Tesla&apos;s regular session is 32.5 hours a week, and
+              from Friday evening to Sunday evening nothing trades it at all. Whatever happens in between lands on the
+              next opening print. Weekend Markets pays you if it opens lower, settled on-chain by the first Pyth price
+              after the bell.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
@@ -80,7 +82,11 @@ export function Landing() {
           <LiveQuote plan={plan} spot={spot} until={weekend?.resolveTs} />
         </div>
 
-        <dl className="mt-10 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-4">
+        <div className="mt-10">
+          <GapNow stock={TSLA} />
+        </div>
+
+        <dl className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-4">
           <Stat
             label="Pyth TSLA"
             value={spot !== undefined ? usd(spot) : "…"}
@@ -105,8 +111,8 @@ export function Landing() {
       <section>
         <SectionTitle
           eyebrow="The problem"
-          title="The token trades 168 hours a week. The stock trades 32.5."
-          sub="Earnings after the close, news on a Saturday: all of it reaches the stock at once, on the next opening print. A TSLAx holder can't buy a put on a token in a Solana wallet, so today they either sell into thin weekend liquidity or take the jump."
+          title="The token trades 168 hours a week. Tesla's regular session is 32.5."
+          sub="Outside it, trading is thin (pre-market, after-hours, overnight venues), and from Friday evening to Sunday evening nothing trades Tesla at all. Earnings after the close, news on a Saturday: it reaches the stock at once, on the next opening print. A TSLAx holder can't buy a put on a token in a Solana wallet, so today they either sell into thin weekend liquidity or take the jump."
         />
         <WeekStrip />
       </section>
@@ -430,26 +436,34 @@ function ago(secs: number): string {
 }
 
 /**
- * One week, Monday to Sunday, with the regular session (09:30-16:00 ET)
- * marked on each weekday: 32.5 of 168 hours.
+ * One week, Monday to Sunday, in ET: the regular session (09:30-16:00) and
+ * the thin trading around it (pre-market, after-hours, overnight venues).
+ * From Friday 20:00 to Sunday 20:00, 48 hours, nothing trades the stock.
  */
 function WeekStrip() {
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  // Thin trading (pre-market, after-hours, overnight) per day, in ET hours; the weekend gap is what's left.
+  const thin: [number, number][] = [
+    [0, 24],
+    [0, 24],
+    [0, 24],
+    [0, 24],
+    [0, 20],
+    [0, 0],
+    [20, 24],
+  ];
+  const span = ([from, to]: [number, number]) => ({
+    left: `${(from / 24) * 100}%`,
+    width: `${((to - from) / 24) * 100}%`,
+  });
   return (
     <div className="rounded-xl border border-line bg-panel px-5 py-6 sm:px-6">
       <div className="grid grid-cols-7 gap-1">
         {days.map((d, i) => (
           <div key={d}>
-            <div className="relative h-12 rounded bg-yes-soft sm:h-14">
-              {i < 5 && (
-                <div
-                  className="absolute inset-y-0 rounded bg-bell"
-                  style={{
-                    left: `${(9.5 / 24) * 100}%`,
-                    width: `${(6.5 / 24) * 100}%`,
-                  }}
-                />
-              )}
+            <div className="relative h-12 overflow-hidden rounded bg-yes-soft sm:h-14">
+              <div className="absolute inset-y-0 bg-bell/25" style={span(thin[i])} />
+              {i < 5 && <div className="absolute inset-y-0 bg-bell" style={span([9.5, 16])} />}
             </div>
             <div className="mt-2 text-center text-xs text-muted">{d}</div>
           </div>
@@ -457,11 +471,14 @@ function WeekStrip() {
       </div>
       <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted">
         <span className="flex items-center gap-2">
-          <span className="h-3 w-3 rounded-sm bg-bell" /> Nasdaq open: 32.5 hours
+          <span className="h-3 w-3 rounded-sm bg-bell" /> Regular session: 32.5 hours
         </span>
         <span className="flex items-center gap-2">
-          <span className="h-3 w-3 rounded-sm bg-yes-soft ring-1 ring-yes/40" /> Closed while TSLAx keeps trading: 135.5
-          hours
+          <span className="h-3 w-3 rounded-sm bg-bell/25" /> Thin: pre-market, after-hours, overnight
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="h-3 w-3 rounded-sm bg-yes-soft ring-1 ring-yes/40" /> Nothing trades Tesla, TSLAx keeps
+          trading: 48 hours every weekend
         </span>
       </div>
     </div>

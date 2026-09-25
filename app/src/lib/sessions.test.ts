@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { nextOpeningBell, nyTimestamp } from "./sessions";
+import { nextOpeningBell, nyTimestamp, usSession } from "./sessions";
 
 const utc = (iso: string) => Date.parse(iso) / 1000;
 const LOCK = 300;
@@ -31,5 +31,23 @@ describe("nextOpeningBell", () => {
     expect(nextOpeningBell(utc("2026-09-25T12:00:00Z"), 1200, LOCK)).toBe(utc("2026-09-25T13:30:00Z"));
     // Less than the lead before betting closes: move to the next session.
     expect(nextOpeningBell(utc("2026-09-25T13:10:00Z"), 1200, LOCK)).toBe(utc("2026-09-28T13:30:00Z"));
+  });
+});
+
+describe("usSession", () => {
+  it("tells regular, extended and closed apart", () => {
+    expect(usSession(utc("2026-09-24T14:00:00Z"))).toBe("regular"); // Thu 10:00 ET
+    expect(usSession(utc("2026-09-24T21:08:00Z"))).toBe("extended"); // Thu 17:08 ET, after-hours
+    expect(usSession(utc("2026-09-24T11:59:00Z"))).toBe("extended"); // Thu 07:59 ET, pre-market
+    expect(usSession(utc("2026-09-25T04:45:00Z"))).toBe("extended"); // Fri 00:45 ET, overnight
+    expect(usSession(utc("2026-09-28T13:30:00Z"))).toBe("regular"); // Mon 09:30 ET, the bell
+  });
+
+  it("is closed only from Friday 20:00 ET to Sunday 20:00 ET", () => {
+    expect(usSession(utc("2026-09-25T23:59:00Z"))).toBe("extended"); // Fri 19:59 ET
+    expect(usSession(utc("2026-09-26T00:00:00Z"))).toBe("closed"); // Fri 20:00 ET
+    expect(usSession(utc("2026-09-26T16:00:00Z"))).toBe("closed"); // Saturday
+    expect(usSession(utc("2026-09-27T23:59:00Z"))).toBe("closed"); // Sun 19:59 ET
+    expect(usSession(utc("2026-09-28T00:00:00Z"))).toBe("extended"); // Sun 20:00 ET
   });
 });

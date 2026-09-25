@@ -18,7 +18,13 @@ export function nyTimestamp(date: { y: number; m: number; d: number }, hour: num
 /** The NY calendar date and weekday of a unix time. */
 function nyDate(unix: number): { y: number; m: number; d: number; weekday: string } {
   const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", { timeZone: NY, year: "numeric", month: "numeric", day: "numeric", weekday: "short" })
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: NY,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      weekday: "short",
+    })
       .formatToParts(new Date(unix * 1000))
       .map((p) => [p.type, p.value]),
   );
@@ -38,4 +44,33 @@ export function nextOpeningBell(now: number, leadSecs: number, lockBeforeSecs: n
     if (ts - lockBeforeSecs >= now + leadSecs) return ts;
   }
   throw new Error("no opening bell in the next 10 days");
+}
+
+export type Session = "regular" | "extended" | "closed";
+
+/**
+ * US equity session at a moment. Regular: 09:30-16:00 ET on weekdays.
+ * Extended: pre-market, after-hours and the overnight venues, which run
+ * Sunday 20:00 ET to Friday 20:00 ET outside the regular session. Closed:
+ * Friday 20:00 ET to Sunday 20:00 ET, when nothing trades US stocks.
+ * Exchange holidays aren't modeled.
+ */
+export function usSession(unix: number): Session {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: NY,
+      weekday: "short",
+      hour: "numeric",
+      minute: "numeric",
+      hourCycle: "h23",
+    })
+      .formatToParts(new Date(unix * 1000))
+      .map((p) => [p.type, p.value]),
+  );
+  const minutes = Number(parts.hour) * 60 + Number(parts.minute);
+  const evening = minutes >= 20 * 60;
+  if (parts.weekday === "Sat") return "closed";
+  if (parts.weekday === "Sun") return evening ? "extended" : "closed";
+  if (parts.weekday === "Fri" && evening) return "closed";
+  return minutes >= 9 * 60 + 30 && minutes < 16 * 60 ? "regular" : "extended";
 }

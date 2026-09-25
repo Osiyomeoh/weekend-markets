@@ -6,6 +6,7 @@ import { etTime } from "@/lib/format";
 
 import { useApp } from "../AppState";
 import { CoverPanel } from "../CoverPanel";
+import { GapNow } from "../GapNow";
 import { GetStarted } from "../GetStarted";
 import { PageHeader } from "../Shell";
 import { StockTabs } from "../StockTabs";
@@ -54,6 +55,8 @@ export function CoverView() {
           </div>
         )}
 
+        {stock && <GapNow stock={stock} />}
+
         {markets.error && <p className="text-sm text-no">Could not load markets from devnet: {markets.error}</p>}
         {!markets.data && !markets.error ? (
           <Skeleton className="h-[560px]" />
@@ -71,7 +74,9 @@ export function CoverView() {
             />
           </div>
         ) : (
-          <p className="rounded-xl border border-line bg-panel px-5 py-6 text-sm text-muted">No ladders are open right now.</p>
+          <p className="rounded-xl border border-line bg-panel px-5 py-6 text-sm text-muted">
+            No ladders are open right now.
+          </p>
         )}
 
         <p className="text-xs text-faint">

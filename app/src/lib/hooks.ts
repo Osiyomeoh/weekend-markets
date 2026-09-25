@@ -62,6 +62,22 @@ export function usePrices() {
   );
 }
 
+export type TokenPrice = { mint: string; price: number; liquidity: number; source: "jupiter" };
+
+/** 24/7 prices of tokenized stocks on Solana, keyed by mint. Display only. */
+export function useTokenPrices() {
+  return usePoll(
+    async () => {
+      const res = await fetch("/api/token-prices", { cache: "no-store" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "token prices unavailable");
+      return body.prices as Record<string, TokenPrice>;
+    },
+    15_000,
+    [],
+  );
+}
+
 export function useMarkets() {
   const { connection } = useConnection();
   const program = useMemo(() => getProgram(connection), [connection]);

@@ -12,7 +12,7 @@
 
 xStocks and Ondo have put US stocks on Solana, and people hold them: about 40,000 wallets hold TSLAx, and NVDAx is past 100,000 (Jupiter token data, 24 Sep 2026). There is roughly $87M of TSLAx outstanding. These tokens trade 24/7.
 
-The stock they track trades **32.5 hours a week**. Whatever happens in the other 135.5 hours (earnings after the close, weekend news) lands all at once on the next opening print. A TSLAx holder on a Friday night can sell into thin weekend liquidity, or hold and take the gap. They can't buy a put: options need a brokerage account and options approval, and they don't cover a token sitting in a Solana wallet.
+The stock they track has a **32.5-hour regular session each week**. Outside it, trading is thin (pre-market, after-hours and overnight venues), and from Friday 20:00 to Sunday 20:00 ET (48 hours) nothing trades it at all. Whatever happens outside the session (earnings after the close, weekend news) lands all at once on the next opening print. A TSLAx holder on a Friday night can sell into thin weekend liquidity, or hold and take the gap. They can't buy a put: options need a brokerage account and options approval, and they don't cover a token sitting in a Solana wallet.
 
 ## What Weekend Markets does
 
