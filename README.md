@@ -90,10 +90,12 @@ flowchart TB
   - strike ladders with a cents-quoted order ticket and the rules shown before trading;
   - a four-step start guide that ticks off from on-chain state;
   - positions described by what they pay, one-click claim;
+  - a "Right now" panel: TSLAx on Solana against Tesla's latest Pyth price, so a holder sees the weekend gap as it forms;
+  - a track record of every settled ladder, read from the chain;
   - devnet faucet.
 - **Always-on keeper:** settles due ladders and opens the next opening-bell ladder every 10 minutes (GitHub Actions calling a secured route).
 - **TypeScript client, keeper and operator scripts:** `series` (open a ladder), `add-liquidity`, `tick` and `keeper` (one pass, or every minute), `status`, and `smoke` (runs the whole user flow against a deployed app with a fresh wallet).
-- **29 TypeScript unit tests** for the ladder and cover math.
+- **36 TypeScript unit tests** for the ladder and cover math and the US session calendar (daylight saving, weekends).
 
 ## Limits
 
@@ -111,7 +113,7 @@ These are the honest ones:
 
 - **Exit before settlement** with an order book or AMM over the same Pyth settlement (Solana Perps & Prediction Markets hackathon).
 - **Automatic claims:** a program change letting a keeper pay winners straight to their token account.
-- **Weekend drift:** show the 24/7 xStock and Ondo prices (`Crypto.TSLAX`, `Crypto.TSLAON` on Pyth) against the last equity print, as the gap forms.
+- **Weekend drift from Pyth:** the "Right now" panel reads TSLAx from Jupiter today; it switches to Pyth's 24/7 xStock feed once our key is entitled to it.
 - **An AI market maker** quoting the ladders from Pyth data (Colosseum).
 
 ## Devnet addresses

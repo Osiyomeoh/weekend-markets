@@ -5,7 +5,7 @@ import Link from "next/link";
 import { COLLATERAL_DECIMALS, COLLATERAL_SYMBOL, explorerAddress } from "@/lib/config";
 import { CoverPlan, coverPlan } from "@/lib/cover";
 import { countdown, etDate, etTime, pct, tokens, usd } from "@/lib/format";
-import { impliedMedian, impliedProbability, seriesCurve } from "@/lib/ladder";
+import { impliedMedian, impliedProbability, MarketView, seriesCurve } from "@/lib/ladder";
 import { pythFeedUrl, STOCKS } from "@/lib/stocks";
 
 import { useApp } from "../AppState";
@@ -237,6 +237,7 @@ export function Landing() {
             )}
           </div>
         </div>
+        <TrackRecord markets={markets.data ?? []} />
       </section>
 
       {/* Why Solana */}
@@ -406,6 +407,95 @@ function LiveQuote({
       <div className="px-2 pb-2 pt-1">
         <PayoffChart plan={plan} spot={spot} shares={EXAMPLE_SHARES} />
       </div>
+    </div>
+  );
+}
+
+type LadderRecord = {
+  key: string;
+  symbol: string;
+  resolveTs: number;
+  price: number | null;
+  publishTime: number | null;
+  yes: number;
+  no: number;
+  voided: number;
+  link: string;
+};
+
+/** Every ladder that has finished, newest first: one Pyth print settles the whole ladder. */
+function ladderRecords(markets: MarketView[]): LadderRecord[] {
+  const groups = new Map<string, MarketView[]>();
+  for (const m of markets.filter((m) => m.status !== "open")) {
+    const key = `${m.feedId}:${m.resolveTs}`;
+    groups.set(key, [...(groups.get(key) ?? []), m]);
+  }
+  return [...groups.entries()]
+    .map(([key, ms]) => {
+      const settled = ms.find((m) => m.status === "resolved");
+      return {
+        key,
+        symbol: STOCKS.find((s) => s.equityFeedId === ms[0].feedId)?.symbol ?? "?",
+        resolveTs: ms[0].resolveTs,
+        price: settled?.settlePrice ?? null,
+        publishTime: settled?.settlePublishTime ?? null,
+        yes: ms.filter((m) => m.outcome === "yes").length,
+        no: ms.filter((m) => m.outcome === "no").length,
+        voided: ms.filter((m) => m.status === "voided").length,
+        link: explorerAddress((settled ?? ms[0]).address),
+      };
+    })
+    .sort((a, b) => b.resolveTs - a.resolveTs);
+}
+
+function TrackRecord({ markets }: { markets: MarketView[] }) {
+  const rows = ladderRecords(markets);
+  if (rows.length === 0) return null;
+  const strikes = rows.reduce((a, r) => a + r.yes + r.no, 0);
+  const voided = rows.reduce((a, r) => a + r.voided, 0);
+  return (
+    <div className="mt-6 rounded-xl border border-line bg-panel">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-5 py-3">
+        <span className="text-xs uppercase tracking-wider text-muted">Track record</span>
+        <span className="num text-xs text-muted">
+          {rows.length} ladder{rows.length > 1 ? "s" : ""} · {strikes} strikes settled by Pyth · {voided} voided
+        </span>
+      </div>
+      <table className="num w-full text-sm">
+        <thead>
+          <tr className="text-left text-xs text-faint">
+            <th className="px-5 py-2 font-normal">Deadline</th>
+            <th className="px-3 py-2 font-normal">Pyth print</th>
+            <th className="hidden px-3 py-2 font-normal sm:table-cell">Published</th>
+            <th className="px-5 py-2 text-right font-normal">Strikes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.key} className="border-t border-line/60">
+              <td className="px-5 py-2.5">
+                <a href={r.link} target="_blank" rel="noreferrer" className="hover:text-bell">
+                  {r.symbol} · {etTime(r.resolveTs, r.resolveTs % 60 !== 0)}
+                </a>
+              </td>
+              <td className="px-3 py-2.5 text-bell">{r.price !== null ? usd(r.price, 2) : "none"}</td>
+              <td className="hidden px-3 py-2.5 text-muted sm:table-cell">
+                {r.publishTime === null
+                  ? "no valid print"
+                  : r.publishTime === r.resolveTs
+                    ? "exactly at the deadline"
+                    : `${r.publishTime - r.resolveTs}s after the deadline`}
+              </td>
+              <td className="px-5 py-2.5 text-right">
+                {r.yes > 0 && <span className="text-yes">{r.yes} YES</span>}
+                {r.yes > 0 && r.no > 0 && <span className="text-faint"> · </span>}
+                {r.no > 0 && <span className="text-no">{r.no} NO</span>}
+                {r.voided > 0 && <span className="text-muted"> {r.voided} refunded</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
