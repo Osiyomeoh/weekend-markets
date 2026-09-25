@@ -22,7 +22,7 @@ xStocks and Ondo have put US stocks on Solana, and people hold them: about 40,00
 
 The stock they track has a **32.5-hour regular session each week**. Outside it, trading is thin (pre-market, after-hours and overnight venues), and from Friday 20:00 to Sunday 20:00 ET (48 hours) nothing trades it at all. Whatever happens outside the session (earnings after the close, weekend news) lands all at once on the next opening print. A TSLAx holder on a Friday night can sell into thin weekend liquidity, or hold and take the gap.
 
-**What the open does, from Pyth's own prints:** across the 45 openings since Pyth's TSLA history begins (22 July 2026), the average close-to-open move was 1.1%, and 4 were over 2%. On 23 July Tesla opened 8.8% below the previous close: about $329 on 10 shares, before a holder could act. ([`app/scripts/gaps.ts`](app/scripts/gaps.ts) rebuilds these from Hermes; the close is the first print at or after 16:00 ET, the open the first at or after 09:30 ET.) They can't buy a put: options need a brokerage account and options approval, and they don't cover a token sitting in a Solana wallet.
+**What the open does, from Pyth's own prints:** across the 46 openings since Pyth's TSLA history begins (22 July 2026), the average close-to-open move was 1.1%, and 4 were over 2%. On 23 July Tesla opened 8.8% below the previous close: about $329 on 10 shares, before a holder could act. ([`app/scripts/gaps.ts`](app/scripts/gaps.ts) rebuilds these from Hermes; the close is the first print at or after 16:00 ET, the open the first at or after 09:30 ET.) They can't buy a put: options need a brokerage account and options approval, and they don't cover a token sitting in a Solana wallet.
 
 ## What Weekend Markets does
 

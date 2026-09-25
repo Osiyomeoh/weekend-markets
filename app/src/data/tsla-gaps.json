@@ -1,6 +1,6 @@
 {
  "source": "Pyth Equity.US.TSLA/USD: first print at or after 16:00 ET (close) and 09:30 ET (open)",
- "generatedAt": "2026-09-25T12:05:55.567Z",
+ "generatedAt": "2026-09-25T13:30:48.631Z",
  "gaps": [
   {
    "from": "2026-07-22",
@@ -360,6 +360,14 @@
    "close": 380.18231000000003,
    "open": 377.59240000000005,
    "gap": -0.00681228434852732,
+   "weekend": false
+  },
+  {
+   "from": "2026-09-24",
+   "to": "2026-09-25",
+   "close": 377.87476000000004,
+   "open": 384.61889,
+   "gap": 0.017847527048379774,
    "weekend": false
   }
  ]
