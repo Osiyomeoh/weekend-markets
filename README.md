@@ -4,7 +4,7 @@
 
 [![ci](https://github.com/Osiyomeoh/weekend-markets/actions/workflows/ci.yml/badge.svg)](https://github.com/Osiyomeoh/weekend-markets/actions/workflows/ci.yml)
 
-**Live app (Solana devnet):** https://weekend-markets.vercel.app · **Program:** [`2oihGq9YRDQkgeEXwrzGcgs9UjDZVUKeKZCP81UkTSN9`](https://explorer.solana.com/address/2oihGq9YRDQkgeEXwrzGcgs9UjDZVUKeKZCP81UkTSN9?cluster=devnet)
+**Pitch video (3 min):** https://youtu.be/hrccjpfuZjY · **Live app (Solana devnet):** https://weekend-markets.vercel.app · **Program:** [`2oihGq9YRDQkgeEXwrzGcgs9UjDZVUKeKZCP81UkTSN9`](https://explorer.solana.com/address/2oihGq9YRDQkgeEXwrzGcgs9UjDZVUKeKZCP81UkTSN9?cluster=devnet)
 
 **Try it in a minute:**
 
