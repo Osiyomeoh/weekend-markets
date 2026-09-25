@@ -10,6 +10,7 @@ import { pythFeedUrl, STOCKS } from "@/lib/stocks";
 
 import { useApp } from "../AppState";
 import { CurveChart } from "../CurveChart";
+import { GapHistory } from "../GapHistory";
 import { GapNow } from "../GapNow";
 import { PayoffChart } from "../PayoffChart";
 import { seriesPhase } from "../SeriesCard";
@@ -115,6 +116,7 @@ export function Landing() {
           sub="Outside it, trading is thin (pre-market, after-hours, overnight venues), and from Friday evening to Sunday evening nothing trades Tesla at all. Earnings after the close, news on a Saturday: it reaches the stock at once, on the next opening print. A TSLAx holder can't buy a put on a token in a Solana wallet, so today they either sell into thin weekend liquidity or take the jump."
         />
         <WeekStrip />
+        <GapHistory />
       </section>
 
       {/* How cover works */}
