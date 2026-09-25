@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "weekend-markets": {
+      "command": "node",
+      "args": ["app/node_modules/tsx/dist/cli.mjs", "app/mcp/server.ts"],
+      "env": { "AGENT_MAX_SPEND": "100" }
+    }
+  }
+}

@@ -38,6 +38,8 @@ Each leg's stake comes from inverting the pool payout exactly, including the sta
 
 An agent managing a tokenized-stock portfolio holds over the weekend like anyone else, and there's no hedge it can call today. The MCP server in [`app/mcp`](app/mcp) lets one buy gap cover the way a person does in the app.
 
+The repo's [`.mcp.json`](.mcp.json) registers it for Claude Code: after `cd app && npm install`, open the repo in Claude Code and approve the `weekend-markets` server. Elsewhere:
+
 ```bash
 cd app && npm install
 claude mcp add weekend-markets -e AGENT_MAX_SPEND=100 -- node "$PWD/node_modules/tsx/dist/cli.mjs" "$PWD/mcp/server.ts"
