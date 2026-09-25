@@ -22,6 +22,8 @@ Example from the live app: covering 10 TSLA at $378.74 down to $347.50 costs **6
 
 **For everyone else: the other side.** Every strike is a YES/NO pool: "TSLA at or above $362.50 at Monday's open?" It's quoted in cents like any prediction market, and anyone can trade it. Together, the pools are the crowd's forecast of the opening price, drawn as a curve with its 50% level.
 
+**For agents: cover as a tool.** An [MCP server](#for-agents) gives Claude, or any agent that speaks MCP, the whole product as tools: read the gap, quote cover sized to a position (or to what a mainnet wallet holds), buy it, follow it, settle and claim. The agent signs with its own devnet wallet under a spending cap set by whoever runs it. Cover never pays more than the position loses, so an agent can hedge with it but can't gamble with it.
+
 ### How cover is built
 
 A put pays `shares × (spot − price)` below spot. The ladder can't pay that exactly, but a strip of NO stakes pays it in steps: one leg per strike below spot, each sized to pay `shares × (gap to the strike above)`. If the stock settles below strike *k*, every leg at or above *k* wins, and those payouts add up to `shares × (spot − k)`, the loss at *k*. So:
@@ -31,6 +33,34 @@ A put pays `shares × (spot − price)` below spot. The ladder can't pay that ex
 - it never pays more than you lose, so it's a hedge, not a bet.
 
 Each leg's stake comes from inverting the pool payout exactly, including the stake's own effect on the pool ([`app/src/lib/cover.ts`](app/src/lib/cover.ts), unit tested).
+
+## For agents
+
+An agent managing a tokenized-stock portfolio holds over the weekend like anyone else, and there's no hedge it can call today. The MCP server in [`app/mcp`](app/mcp) lets one buy gap cover the way a person does in the app.
+
+```bash
+cd app && npm install
+claude mcp add weekend-markets -e AGENT_MAX_SPEND=100 -- node "$PWD/node_modules/tsx/dist/cli.mjs" "$PWD/mcp/server.ts"
+```
+
+Then ask, for example: *"I'm holding 10 TSLAx over the weekend. Protect me if Tesla opens Monday below $362.50, and spend at most $80."*
+
+| Tool | What it does |
+|---|---|
+| `wallet`, `get_test_funds` | The agent's own devnet wallet, created on first use, and test USDC from the faucet |
+| `gap_now` | Tesla's latest Pyth price, whether Wall Street is open, and where TSLAx trades on Solana right now |
+| `list_ladders` | Open ladders: deadline, when stakes close, YES/NO odds per strike |
+| `quote_cover` | Cost, most it pays, and the payout below each strike, for `shares` or for what a mainnet `holder` wallet holds |
+| `buy_cover` | Buys the quoted cover in one transaction, only if it costs no more than `max_cost` |
+| `my_cover`, `settle`, `claim` | Follow positions, settle due ladders on the Pyth print, collect payouts |
+
+Guardrails:
+
+- It only runs on devnet: the server checks the cluster's genesis hash before it signs anything.
+- Each purchase is capped twice: by `max_cost` on the call, and by `AGENT_MAX_SPEND`, set by the person running the agent. A purchase above either fails before anything is sent.
+- It never sees our keys. Prices, holdings, the faucet and settlement go through the app's public routes. The agent's wallet lives in `keys/agent.json` (gitignored, owner-only permissions).
+
+`npm run agent:smoke` runs the whole flow through the MCP protocol with a separate wallet: it lists the tools, funds the wallet, reads the gap, checks that both spending guards refuse, buys cover for one share, and reads it back.
 
 ## Why Solana
 
@@ -93,6 +123,7 @@ flowchart TB
   - a "Right now" panel: TSLAx on Solana against Tesla's latest Pyth price, so a holder sees the weekend gap as it forms;
   - a track record of every settled ladder, read from the chain;
   - devnet faucet.
+- **MCP server for agents:** 9 tools covering the full flow, with a devnet-only check and two spending limits, plus a smoke test that drives it through the MCP protocol.
 - **Always-on keeper:** settles due ladders and opens the next opening-bell ladder every 10 minutes (GitHub Actions calling a secured route).
 - **TypeScript client, keeper and operator scripts:** `series` (open a ladder), `add-liquidity`, `tick` and `keeper` (one pass, or every minute), `status`, and `smoke` (runs the whole user flow against a deployed app with a fresh wallet).
 - **36 TypeScript unit tests** for the ladder and cover math and the US session calendar (daylight saving, weekends).

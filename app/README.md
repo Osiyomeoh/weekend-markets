@@ -21,6 +21,36 @@ Put these in `app/.env.local` (gitignored) for local development, or in the Verc
 
 `.github/workflows/keeper.yml` calls `POST /api/cron/tick` every 10 minutes. Each call settles every due ladder (one posted Pyth update per ladder) and opens the ladder for the next opening bell (weekdays 09:30 ET) for every stock our Pyth key can price. Calls are idempotent. Settlement is also permissionless, so anyone can settle from the app with "Settle now" without waiting for the keeper.
 
+## Agents (MCP server)
+
+`mcp/server.ts` exposes the product as MCP tools; `mcp/agent.ts` holds the logic. It signs with its own devnet wallet and reads prices, holdings, the faucet and settlement from the app's public routes, so it needs no keys and doesn't load `.env.local`.
+
+| Variable | Default | |
+|---|---|---|
+| `AGENT_KEYPAIR` | `../keys/agent.json` | The agent's wallet; created on first use |
+| `AGENT_MAX_SPEND` | `100` | Most one purchase may cost, in tUSDC |
+| `WEEKEND_MARKETS_URL` | `https://weekend-markets.vercel.app` | App whose routes it calls |
+
+Claude Code:
+
+```bash
+claude mcp add weekend-markets -e AGENT_MAX_SPEND=100 -- node "$PWD/node_modules/tsx/dist/cli.mjs" "$PWD/mcp/server.ts"
+```
+
+Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json`), with absolute paths:
+
+```json
+{
+  "mcpServers": {
+    "weekend-markets": {
+      "command": "/opt/homebrew/bin/node",
+      "args": ["<repo>/app/node_modules/tsx/dist/cli.mjs", "<repo>/app/mcp/server.ts"],
+      "env": { "AGENT_MAX_SPEND": "100" }
+    }
+  }
+}
+```
+
 ## Commands
 
 ```bash
@@ -33,4 +63,6 @@ npm run tick                                  # one keeper pass: settle what's d
 npm run keeper                                # the same pass every minute
 npm run status                                # every ladder, pools and outcomes
 npm run smoke -- --url https://weekend-markets.vercel.app   # full user flow with a fresh wallet
+npm run agent                                 # the MCP server, on stdio
+npm run agent:smoke                           # the agent flow through the MCP protocol
 ```
