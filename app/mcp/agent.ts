@@ -33,6 +33,7 @@ import {
   seriesCurve,
 } from "../src/lib/ladder";
 import { fetchMarkets, fetchPositions, getProgram, placeBetIxs } from "../src/lib/program";
+import { pythHolidays } from "../src/lib/server/marketHours";
 import { nextOpeningBell, usSession } from "../src/lib/sessions";
 import { Stock, STOCKS } from "../src/lib/stocks";
 
@@ -150,7 +151,7 @@ export async function gapNow(symbol?: string): Promise<string> {
   const t = now();
   // Same rule as the app: no Pyth print for half an hour means nothing is trading.
   const session = t - q.publishTime > 1800 ? "closed" : usSession(t);
-  const bell = nextOpeningBell(t, 0, 0);
+  const bell = nextOpeningBell(t, 0, 0, await pythHolidays(stock).catch(() => new Set<string>()));
 
   const lines = [
     `${stock.symbol} on Pyth (${stock.pythSymbol}): ${usd(q.price)}, published ${t - q.publishTime}s ago.`,

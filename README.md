@@ -139,7 +139,7 @@ flowchart TB
 - **Program** ([`programs/weekend-markets`](programs/weekend-markets)): Anchor 1.2 with `pyth-solana-receiver-sdk` 2.0 (`pro-compatible`, the receiver after Pyth's August 2026 Core upgrade). Instructions: `create_market`, `place_bet`, `resolve`, `void_market`, `claim`, `close_market`. Collateral is classic SPL Token only, since Token-2022 transfer fees and hooks would break the pool accounting.
 - **Operator:** creates ladders, seeds them, runs the faucet and pays fees to post settlement prices. It has no special power in the program: `resolve` and `void_market` are permissionless, and it can't touch anyone's stake.
 - **Keeper and settle route:** fetch the update for `resolve_ts` from Hermes, run the same timing check the program runs (so they never pay to post a price that would be rejected), post it through the Pyth receiver once per ladder and call `resolve` for every strike in the same transaction set, then close the temporary price account to recover rent.
-- **Always on:** a scheduled job calls the keeper every 10 minutes. It settles whatever is due and opens a new ladder for every weekday's opening bell, so the app runs without anyone at a laptop.
+- **Always on:** a scheduled job calls the keeper every 10 minutes. It settles whatever is due and opens a new ladder for every opening bell, so the app runs without anyone at a laptop. It takes exchange holidays from Pyth's own market-hours schedule for the feed, so it never opens a ladder for a day Pyth won't price.
 
 ## What's built
 
@@ -157,7 +157,7 @@ flowchart TB
 - **Solana Action (Blink) for cover:** a live quote on GET and a ready-to-sign transaction on POST, funding new wallets in the same call.
 - **Always-on keeper:** settles due ladders and opens the next opening-bell ladder every 10 minutes (GitHub Actions calling a secured route).
 - **TypeScript client, keeper and operator scripts:** `series` (open a ladder), `add-liquidity`, `tick` and `keeper` (one pass, or every minute), `status`, and `smoke` (runs the whole user flow against a deployed app with a fresh wallet).
-- **39 TypeScript unit tests** for the ladder and cover math and the US session calendar (daylight saving, weekends).
+- **42 TypeScript unit tests** for the ladder and cover math and the US session calendar (daylight saving, weekends, holidays from Pyth's schedule).
 
 ## Limits
 
@@ -168,7 +168,7 @@ These are the honest ones:
 - **Liquidity is seeded.** The operator seeds each strike with 5,000 tUSDC at model odds. That stands in for market makers, and it's a real counterparty that can lose.
 - **No early exit.** Pools are parimutuel, so a position is held to settlement, and the payout shown is an estimate until betting closes.
 - **Claims are one click, not automatic.** `claim` requires the owner's signature.
-- **What "the open" means.** Markets settle on the first Pyth `Equity.US` print at or after 09:30 ET. That is Pyth's aggregate price, not the exchange's official opening auction. On a holiday or halt with no print in the window, the market voids and refunds.
+- **What "the open" means.** Markets settle on the first Pyth `Equity.US` print at or after 09:30 ET. That is Pyth's aggregate price, not the exchange's official opening auction. The keeper skips exchange holidays using Pyth's market-hours schedule; if an unscheduled halt leaves no print in the window, the market voids and refunds.
 - **Regulation.** Binary contracts on stock prices are regulated in most places (in the US, by the CFTC and SEC). A mainnet launch would need legal review and geofencing first. This is a devnet prototype.
 
 ## Planned

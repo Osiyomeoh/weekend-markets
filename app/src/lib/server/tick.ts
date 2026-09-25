@@ -7,6 +7,7 @@ import { STOCKS } from "../stocks";
 import { settleLadder } from "./keeper";
 import { keypairWallet } from "./keypairWallet";
 import { loadOperator } from "./operator";
+import { pythHolidays } from "./marketHours";
 import { latestQuotes } from "./pyth";
 import { createLadder, DEFAULT_LADDER, ladderExists } from "./series";
 
@@ -62,7 +63,11 @@ async function settleDue({ connection, operator, outOfTime, report }: Ctx) {
       return;
     }
     try {
-      const r = await settleLadder(connection, operator, ladder.markets.map((m) => new PublicKey(m.address)));
+      const r = await settleLadder(
+        connection,
+        operator,
+        ladder.markets.map((m) => new PublicKey(m.address)),
+      );
       report.settled.push({ resolved: r.resolved.length, voided: r.voided.length, signatures: r.signatures });
       report.pending.push(...r.pending);
     } catch (e) {
@@ -77,7 +82,6 @@ async function openNextLadders({ connection, operator, outOfTime, report }: Ctx)
     report.notes.push(`operator has ${report.operatorSol} SOL; not opening new ladders until it's topped up`);
     return;
   }
-  const resolveTs = nextOpeningBell(Date.now() / 1000, LEAD_SECS, DEFAULT_LADDER.lockBeforeSecs);
   const quotes = await latestQuotes(STOCKS.map((s) => s.equityFeedId));
   for (const stock of STOCKS) {
     const quote = quotes[stock.equityFeedId];
@@ -86,6 +90,12 @@ async function openNextLadders({ connection, operator, outOfTime, report }: Ctx)
       report.notes.push(`${stock.symbol}: last Pyth print is too old to center a ladder on`);
       continue;
     }
+    // Skip exchange holidays: a ladder on a closed day gets no print and refunds everyone.
+    const holidays = await pythHolidays(stock).catch((e: Error) => {
+      report.notes.push(`${stock.symbol}: ${e.message}; assuming every weekday opens`);
+      return new Set<string>();
+    });
+    const resolveTs = nextOpeningBell(Date.now() / 1000, LEAD_SECS, DEFAULT_LADDER.lockBeforeSecs, holidays);
     if (await ladderExists(connection, operator, stock, resolveTs)) continue;
     if (outOfTime()) {
       report.notes.push(`${stock.symbol}: out of time; the next tick opens it`);
