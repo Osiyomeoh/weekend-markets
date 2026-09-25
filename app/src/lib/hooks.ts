@@ -3,11 +3,11 @@
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { COLLATERAL_MINT, OPERATOR } from "./config";
+import { COLLATERAL_MINT } from "./config";
 import { MarketView } from "./ladder";
-import { fetchMarkets, fetchPositions, getProgram, PositionView } from "./program";
+import { PositionView } from "./program";
 
 export type Quote = { feedId: string; price: number; conf: number; publishTime: number };
 export type Holding = { stock: string; symbol: string; issuer: string; mint: string; shares: number };
@@ -15,7 +15,7 @@ export type Holding = { stock: string; symbol: string; issuer: string; mint: str
 /** A polled value: `data` is null until the first load. */
 export type Poll<T> = { data: T | null; error: string | null; refresh: () => Promise<void> };
 
-/** Re-runs `fn` every `ms`, and immediately whenever `deps` change. */
+/** Re-runs `fn` every `ms` while the tab is visible, and immediately whenever `deps` change or the tab comes back. */
 function usePoll<T>(fn: () => Promise<T>, ms: number, deps: unknown[]): Poll<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,8 +33,14 @@ function usePoll<T>(fn: () => Promise<T>, ms: number, deps: unknown[]): Poll<T> 
   }, []);
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, ms);
-    return () => clearInterval(id);
+    // A hidden tab doesn't poll: every open tab would otherwise add load on the shared endpoints.
+    const id = setInterval(() => document.visibilityState === "visible" && refresh(), ms);
+    const onVisible = () => document.visibilityState === "visible" && refresh();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refresh, ms, ...deps]);
   return { data, error, refresh };
@@ -107,20 +113,45 @@ export function usePreStocks(owner: PublicKey | null) {
   );
 }
 
-export function useMarkets() {
-  const { connection } = useConnection();
-  const program = useMemo(() => getProgram(connection), [connection]);
-  return usePoll(() => fetchMarkets(program, OPERATOR), 8_000, [program]);
+async function getJson<T>(path: string, fallbackError: string): Promise<T> {
+  const res = await fetch(path, { cache: "no-store" });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error ?? fallbackError);
+  return body as T;
 }
 
-/** Positions held by `owner` (the connected wallet, or any address for a read-only view). */
+/**
+ * Every operator market. Read through /api/markets, which the server shares
+ * across visitors: the public devnet RPC rate-limits this read per browser.
+ */
+export function useMarkets() {
+  return usePoll(
+    async (): Promise<MarketView[]> => {
+      const body = await getJson<{ markets: (MarketView & { yesPool: string; noPool: string })[] }>(
+        "/api/markets",
+        "could not load markets",
+      );
+      return body.markets.map((m) => ({ ...m, yesPool: BigInt(m.yesPool), noPool: BigInt(m.noPool) }));
+    },
+    8_000,
+    [],
+  );
+}
+
+/** Positions held by `owner` (the connected wallet, or any address for a read-only view), via /api/positions. */
 export function usePositions(owner: PublicKey | null) {
-  const { connection } = useConnection();
-  const program = useMemo(() => getProgram(connection), [connection]);
-  return usePoll(async (): Promise<PositionView[]> => (owner ? fetchPositions(program, owner) : []), 8_000, [
-    program,
-    owner?.toBase58(),
-  ]);
+  return usePoll(
+    async (): Promise<PositionView[]> => {
+      if (!owner) return [];
+      const body = await getJson<{ positions: (PositionView & { yesAmount: string; noAmount: string })[] }>(
+        `/api/positions?owner=${owner.toBase58()}`,
+        "could not load positions",
+      );
+      return body.positions.map((p) => ({ ...p, yesAmount: BigInt(p.yesAmount), noAmount: BigInt(p.noAmount) }));
+    },
+    8_000,
+    [owner?.toBase58()],
+  );
 }
 
 export function useTokenBalance() {
