@@ -62,8 +62,8 @@ export function Landing() {
             <p className="mt-5 max-w-2xl text-base leading-relaxed text-muted sm:text-lg">
               TSLAx and TSLAon trade around the clock on Solana. Tesla&apos;s regular session is 32.5 hours a week, and
               from Friday evening to Sunday evening nothing trades it at all. Whatever happens in between lands on the
-              next opening print. Weekend Markets pays you if it opens lower, settled on-chain by the first Pyth price
-              after the bell.
+              next opening print. Weekend Markets pays you if it opens lower, priced from Pyth&apos;s history of openings
+              and settled on-chain by the first Pyth price after the bell.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link

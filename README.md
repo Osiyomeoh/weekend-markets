@@ -176,7 +176,7 @@ flowchart TB
 - **Program** ([`programs/weekend-markets`](programs/weekend-markets)): Anchor 1.2 with `pyth-solana-receiver-sdk` 2.0 (`pro-compatible`, the receiver after Pyth's August 2026 Core upgrade). Instructions: `create_market`, `place_bet`, `resolve`, `void_market`, `claim`, `close_market`. Collateral is classic SPL Token only, since Token-2022 transfer fees and hooks would break the pool accounting.
 - **Operator:** creates ladders, seeds them, runs the faucet and pays fees to post settlement prices. It has no special power in the program: `resolve` and `void_market` are permissionless, and it can't touch anyone's stake.
 - **Keeper and settle route:** fetch the update for `resolve_ts` from Hermes, run the same timing check the program runs (so they never pay to post a price that would be rejected), post it through the Pyth receiver once per ladder and call `resolve` for every strike in the same transaction set, then close the temporary price account to recover rent.
-- **Always on:** a scheduled job calls the keeper every 10 minutes. It settles whatever is due and opens a new ladder for every opening bell, so the app runs without anyone at a laptop. It takes exchange holidays from Pyth's own market-hours schedule for the feed, so it never opens a ladder for a day Pyth won't price.
+- **Always on:** a scheduled GitHub Actions job calls the keeper, every 10 minutes when GitHub runs it on time (scheduled runs are best-effort and can lag). A late run still settles on the right price, since it fetches the print for the deadline, not the latest one. It settles whatever is due and opens a new ladder for every opening bell, so the app runs without anyone at a laptop. It takes exchange holidays from Pyth's own market-hours schedule for the feed, so it never opens a ladder for a day Pyth won't price.
 
 ## What's built
 
@@ -193,7 +193,7 @@ flowchart TB
   - devnet faucet.
 - **MCP server for agents:** hosted at `/mcp` (9 tools, no keys) and runnable locally with the agent's own wallet (12 tools, a devnet-only check and two spending limits), with smoke tests that drive both through the MCP protocol.
 - **Solana Action (Blink) for cover:** a live quote on GET and a ready-to-sign transaction on POST, funding new wallets in the same call.
-- **Always-on keeper:** settles due ladders and opens the next opening-bell ladder every 10 minutes (GitHub Actions calling a secured route).
+- **Always-on keeper:** settles due ladders and opens the next opening-bell ladder on a 10-minute schedule (GitHub Actions calling a secured route).
 - **TypeScript client, keeper and operator scripts:** `series` (open a ladder), `add-liquidity`, `requote` (move open ladders to the current pricing), `tick` and `keeper` (one pass, or every minute), `status`, and `smoke` (runs the whole user flow against a deployed app with a fresh wallet).
 - **53 TypeScript unit tests** for the ladder and cover math, the opening-history pricing and its backtest (including a no-look-ahead check), and the US session calendar (daylight saving, weekends, holidays from Pyth's schedule).
 
