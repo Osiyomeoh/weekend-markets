@@ -495,3 +495,31 @@ export async function trackRecord(): Promise<string> {
     ...lines,
   ].join("\n");
 }
+
+type PreStockRow = {
+  symbol: string;
+  name: string;
+  tokenPrice: number;
+  markPrice: number;
+  gap: number;
+  markValuation: number;
+  pythIndex: string | null;
+};
+
+/** PreStocks pre-IPO tokens against PreStocks' own marks: the premium or discount a buyer pays. Display only. */
+export async function preIpoGap(symbol?: string): Promise<string> {
+  const { tokens } = await apiOk<{ tokens: PreStockRow[] }>("/api/prestocks");
+  const want = symbol?.trim().toUpperCase();
+  const rows = want ? tokens.filter((t) => t.symbol === want || t.name.toUpperCase() === want) : tokens;
+  if (rows.length === 0)
+    throw new Error(`No PreStocks token ${symbol}. Known: ${tokens.map((t) => t.symbol).join(", ")}.`);
+  return [
+    "PreStocks tokens put private companies on Solana; the companies themselves don't trade. Gap = token price against PreStocks' own mark for the company.",
+    ...rows.map(
+      (t) =>
+        `${t.name} (${t.symbol}): token ${usd(t.tokenPrice)}, mark ${usd(t.markPrice)}, ${pct(t.gap, 1)} ${t.gap >= 0 ? "premium" : "discount"}; valued at $${(t.markValuation / 1e9).toFixed(0)}B at the mark` +
+        (t.pythIndex ? `. Pyth publishes ${t.pythIndex}; cover opens on it once enabled for this deployment.` : "."),
+    ),
+    "Source: prestocks.com, refreshed every minute. Display only: nothing settles on these prices.",
+  ].join("\n");
+}

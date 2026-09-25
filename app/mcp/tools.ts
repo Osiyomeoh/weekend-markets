@@ -119,6 +119,18 @@ export function createServer(kind: "local" | "hosted"): McpServer {
   );
 
   server.registerTool(
+    "pre_ipo_gap",
+    {
+      title: "Pre-IPO gap",
+      description:
+        "PreStocks pre-IPO tokens (OpenAI, Anthropic, SpaceX and others) against PreStocks' own mark for each company: the premium or discount a buyer pays today. Display only.",
+      inputSchema: { stock: z.string().optional().describe("A PreStocks symbol, e.g. OPENAI. Default: all of them.") },
+      annotations: read,
+    },
+    ({ stock }) => respond(() => agent.preIpoGap(stock)),
+  );
+
+  server.registerTool(
     "settle",
     {
       title: "Settle due ladders",

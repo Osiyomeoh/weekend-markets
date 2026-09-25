@@ -378,7 +378,7 @@ const ACTION_CALL = `POST https://weekend-markets.vercel.app/api/actions/cover?s
 function ForAgents({ plan, until }: { plan: CoverPlan | null; until: number | undefined }) {
   const legs = plan?.legs ?? [];
   return (
-    <section>
+    <section id="agents" className="scroll-mt-24">
       <SectionTitle
         eyebrow="For agents"
         title="Holders get an app. Agents get a tool."

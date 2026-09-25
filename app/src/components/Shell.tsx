@@ -11,15 +11,16 @@ import { tokens } from "@/lib/format";
 import { useApp } from "./AppState";
 
 // The wallet button reads browser-only state, so it renders on the client only.
-const WalletMultiButton = dynamic(
-  () => import("@solana/wallet-adapter-react-ui").then((m) => m.WalletMultiButton),
-  { ssr: false, loading: () => <div className="h-9 w-32 rounded-lg border border-line bg-panel-2" /> },
-);
+const WalletMultiButton = dynamic(() => import("@solana/wallet-adapter-react-ui").then((m) => m.WalletMultiButton), {
+  ssr: false,
+  loading: () => <div className="h-9 w-32 rounded-lg border border-line bg-panel-2" />,
+});
 
 const NAV = [
   { href: "/cover", label: "Cover" },
   { href: "/markets", label: "Markets" },
   { href: "/portfolio", label: "Portfolio" },
+  { href: "/pre-ipo", label: "Pre-IPO" },
 ];
 
 export function Shell({ children }: { children: ReactNode }) {
@@ -103,10 +104,20 @@ export function Shell({ children }: { children: ReactNode }) {
             </a>
           </span>
           <span className="flex gap-4">
-            <a className="underline hover:text-text" href={explorerAddress(PROGRAM_ID.toBase58())} target="_blank" rel="noreferrer">
+            <a
+              className="underline hover:text-text"
+              href={explorerAddress(PROGRAM_ID.toBase58())}
+              target="_blank"
+              rel="noreferrer"
+            >
               Program
             </a>
-            <a className="underline hover:text-text" href="https://github.com/Osiyomeoh/weekend-markets" target="_blank" rel="noreferrer">
+            <a
+              className="underline hover:text-text"
+              href="https://github.com/Osiyomeoh/weekend-markets"
+              target="_blank"
+              rel="noreferrer"
+            >
               Source
             </a>
           </span>
@@ -126,7 +137,12 @@ export function Shell({ children }: { children: ReactNode }) {
             </button>
           </div>
           {toast.sig && (
-            <a className="mt-1 block text-xs text-bell underline" href={explorerTx(toast.sig)} target="_blank" rel="noreferrer">
+            <a
+              className="mt-1 block text-xs text-bell underline"
+              href={explorerTx(toast.sig)}
+              target="_blank"
+              rel="noreferrer"
+            >
               View transaction
             </a>
           )}
@@ -139,7 +155,12 @@ export function Shell({ children }: { children: ReactNode }) {
 export function Bell({ size = 26 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Z" stroke="var(--bell)" strokeWidth="1.6" strokeLinejoin="round" />
+      <path
+        d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Z"
+        stroke="var(--bell)"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
       <path d="M10 20.5a2 2 0 0 0 4 0" stroke="var(--bell)" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );

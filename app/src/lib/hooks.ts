@@ -78,6 +78,35 @@ export function useTokenPrices() {
   );
 }
 
+export type PreStock = {
+  symbol: string;
+  name: string;
+  mint: string;
+  url: string;
+  markPrice: number;
+  tokenPrice: number;
+  gap: number;
+  markValuation: number;
+  impliedValuation: number;
+  supply: number;
+  pythIndex: string | null;
+};
+export type PreStocksData = { tokens: PreStock[]; holdings: { symbol: string; amount: number }[] | null };
+
+/** PreStocks pre-IPO tokens against their marks (display only), and what `owner` holds on mainnet. */
+export function usePreStocks(owner: PublicKey | null) {
+  return usePoll(
+    async (): Promise<PreStocksData> => {
+      const res = await fetch(`/api/prestocks${owner ? `?owner=${owner.toBase58()}` : ""}`, { cache: "no-store" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "PreStocks data unavailable");
+      return body as PreStocksData;
+    },
+    60_000,
+    [owner?.toBase58()],
+  );
+}
+
 export function useMarkets() {
   const { connection } = useConnection();
   const program = useMemo(() => getProgram(connection), [connection]);
@@ -88,11 +117,10 @@ export function useMarkets() {
 export function usePositions(owner: PublicKey | null) {
   const { connection } = useConnection();
   const program = useMemo(() => getProgram(connection), [connection]);
-  return usePoll(
-    async (): Promise<PositionView[]> => (owner ? fetchPositions(program, owner) : []),
-    8_000,
-    [program, owner?.toBase58()],
-  );
+  return usePoll(async (): Promise<PositionView[]> => (owner ? fetchPositions(program, owner) : []), 8_000, [
+    program,
+    owner?.toBase58(),
+  ]);
 }
 
 export function useTokenBalance() {
@@ -146,7 +174,9 @@ export function useSendIxs() {
       let signature: string;
       try {
         signature = signTransaction
-          ? await connection.sendRawTransaction((await signTransaction(tx)).serialize(), { preflightCommitment: "confirmed" })
+          ? await connection.sendRawTransaction((await signTransaction(tx)).serialize(), {
+              preflightCommitment: "confirmed",
+            })
           : await sendTransaction(tx, connection);
       } catch (e) {
         throw new Error(walletHint(e as Error));

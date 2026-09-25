@@ -73,6 +73,7 @@ Then ask, for example: *"I'm holding 10 TSLAx over the weekend. Protect me if Te
 | `list_ladders` | both | Open ladders: deadline, when stakes close, YES/NO odds per strike |
 | `quote_cover` | both | Cost, most it pays, and the payout below each strike, for `shares` or for what a mainnet `holder` wallet holds |
 | `track_record` | both | Every settled ladder: the Pyth print, when it was published, which strikes paid |
+| `pre_ipo_gap` | both | PreStocks pre-IPO tokens against PreStocks' own marks: the premium or discount a buyer pays |
 | `settle` | both | Settles due ladders on the first Pyth print at or after the deadline |
 | `cover_transaction`, `positions` | hosted | The purchase as an unsigned transaction for any wallet; any wallet's positions |
 | `wallet`, `get_test_funds` | local | The agent's own devnet wallet, created on first use, and test USDC from the faucet |
@@ -98,6 +99,14 @@ POST https://weekend-markets.vercel.app/api/actions/cover?shares=10  { "account"
 ```
 
 `shares=held` sizes the cover to the TSLAx and TSLAon the signer holds on mainnet. A brand-new devnet wallet is sent test funds in the same call, so one click works from nothing. [`/actions.json`](https://weekend-markets.vercel.app/actions.json) maps the Cover page to the action. `npm run smoke` buys through it with an empty wallet.
+
+## Pre-IPO tokens: PreStocks
+
+[PreStocks](https://prestocks.com) puts private companies on Solana: OpenAI, Anthropic, SpaceX, Anduril and more, as Token-2022 tokens. The tokens trade around the clock; the companies don't trade at all. PreStocks publishes a mark for each company, so the distance between a token's price and its mark is the premium (or discount) a buyer pays today. That's the same question gap cover answers for listed stocks: how far the token is from what's underneath.
+
+The [Pre-IPO page](https://weekend-markets.vercel.app/pre-ipo) shows that gap for every PreStocks token, live from their API (on 25 Sep: OpenAI +27.8%, Neuralink +34.4%, SpaceX −19.6%). Connect a wallet and it reads your PreStocks balances from mainnet, valued at the market and at the mark. Agents get the same table through the `pre_ipo_gap` MCP tool.
+
+Cover for pre-IPO holders comes next, and it will settle the same way as TSLA: on Pyth, not on any issuer's number. Pyth already publishes `Equity.Index.OPENAI/USD` and `Equity.Index.ANTHROPIC/USD` around the clock; our key isn't entitled to them yet, so we don't open markets on them. The prices on the Pre-IPO page are display only: nothing settles on them.
 
 ## Why Solana
 
@@ -161,8 +170,9 @@ flowchart TB
   - a "Right now" panel: TSLAx on Solana against Tesla's latest Pyth price, so a holder sees the weekend gap as it forms;
   - a track record of every settled ladder, read from the chain;
   - a chart of every TSLA close-to-open move since July, from Pyth history;
+  - a Pre-IPO page: every PreStocks token against its mark, with your PreStocks balances read from mainnet;
   - devnet faucet.
-- **MCP server for agents:** hosted at `/mcp` (7 tools, no keys) and runnable locally with the agent's own wallet (10 tools, a devnet-only check and two spending limits), with smoke tests that drive both through the MCP protocol.
+- **MCP server for agents:** hosted at `/mcp` (8 tools, no keys) and runnable locally with the agent's own wallet (11 tools, a devnet-only check and two spending limits), with smoke tests that drive both through the MCP protocol.
 - **Solana Action (Blink) for cover:** a live quote on GET and a ready-to-sign transaction on POST, funding new wallets in the same call.
 - **Always-on keeper:** settles due ladders and opens the next opening-bell ladder every 10 minutes (GitHub Actions calling a secured route).
 - **TypeScript client, keeper and operator scripts:** `series` (open a ladder), `add-liquidity`, `tick` and `keeper` (one pass, or every minute), `status`, and `smoke` (runs the whole user flow against a deployed app with a fresh wallet).
