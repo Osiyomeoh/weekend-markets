@@ -4,6 +4,8 @@ import Link from "next/link";
 
 import history from "@/data/tsla-gaps.json";
 import { etTime, pct, usd } from "@/lib/format";
+import { backtestCover, MIN_HISTORY, openingHistory } from "@/lib/gapModel";
+import { STOCKS } from "@/lib/stocks";
 
 import { useApp } from "../AppState";
 import { CoverPanel } from "../CoverPanel";
@@ -98,6 +100,8 @@ export function CoverView() {
 }
 
 /** What the opening print has done lately, from Pyth history (see the landing page's chart). */
+const TSLA = STOCKS.find((s) => s.symbol === "TSLA")!;
+
 function OpenHistoryNote() {
   const gaps = history.gaps;
   if (gaps.length === 0) return null;
@@ -108,13 +112,20 @@ function OpenHistoryNote() {
     day: "numeric",
     timeZone: "UTC",
   });
+  const bt = backtestCover(TSLA, openingHistory(TSLA), 10);
+  const btStart = new Date(`${bt.nights[MIN_HISTORY].to}T12:00:00Z`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
   return (
     <p className="-mt-3 text-xs text-muted">
       Since July, Tesla&apos;s open has moved more than 2% from the previous close on {over2} of {gaps.length} days. The
       largest was {pct(worst.gap, 1)} on {date}: {usd(10 * worst.close * Math.abs(worst.gap), 0)} on 10 shares, at the
-      bell.{" "}
+      bell. Replayed on the {bt.priced.nights} openings since {btStart}, cover like this, priced only from the
+      openings before each one, paid back {Math.round((bt.priced.paid / bt.priced.cost) * 100)}¢ per dollar.{" "}
       <Link href="/#problem" className="underline hover:text-text">
-        Every open since July
+        Every open, and the backtest
       </Link>
     </p>
   );
