@@ -94,6 +94,7 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as { account?: unknown };
     owner = new PublicKey(String(body.account));
+    if (!PublicKey.isOnCurve(owner.toBytes())) throw new Error();
   } catch {
     return json({ message: "account must be a wallet address" }, 400);
   }

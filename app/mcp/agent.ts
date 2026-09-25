@@ -48,6 +48,9 @@ export const APP_URL = (process.env.WEEKEND_MARKETS_URL || "https://weekend-mark
 export const KEYPAIR_PATH = resolve(process.env.AGENT_KEYPAIR || join(__dirname, "..", "..", "keys", "agent.json"));
 /** Most the agent may spend on one purchase, in tUSDC. Set by the person running it. */
 export const MAX_SPEND = Number(process.env.AGENT_MAX_SPEND || 100);
+// A cap that isn't a positive number would compare false against every cost; refuse to start instead.
+if (!(MAX_SPEND > 0))
+  throw new Error(`AGENT_MAX_SPEND must be a positive number of tUSDC, not "${process.env.AGENT_MAX_SPEND}"`);
 
 const UNIT = 10 ** COLLATERAL_DECIMALS;
 const DEVNET_GENESIS = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
