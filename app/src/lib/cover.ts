@@ -37,11 +37,7 @@ export type CoverPlan = {
  * the pools don't otherwise move. Payout is `floor(s(T+s)/(W+s))`, which is
  * non-decreasing in s and never less than s, so the answer is in [1, target].
  */
-export function stakeForPayout(
-  m: Pick<MarketView, "yesPool" | "noPool">,
-  side: "yes" | "no",
-  target: bigint,
-): bigint {
+export function stakeForPayout(m: Pick<MarketView, "yesPool" | "noPool">, side: "yes" | "no", target: bigint): bigint {
   if (target <= 0n) return 0n;
   let lo = 1n;
   let hi = target;
@@ -87,6 +83,20 @@ export function coverPlan(
     cost: legs.reduce((a, l) => a + l.stake, 0n),
     maxPayout: legs.reduce((a, l) => a + l.payout, 0n),
   };
+}
+
+/**
+ * The default range: from the first strike at least 1% below the price (a leg
+ * hugging the price costs about as much as it pays) down to the lowest open
+ * strike. Null when no open strike is below the price.
+ */
+export function defaultCoverRange(markets: MarketView[], spot: number): { from: number; to: number } | null {
+  const below = markets
+    .filter((m) => m.status === "open" && m.strike < spot)
+    .map((m) => m.strike)
+    .sort((a, b) => b - a);
+  if (below.length === 0) return null;
+  return { from: below.find((k) => k <= spot * 0.99) ?? below[0], to: below.at(-1)! };
 }
 
 /** What the plan pays if the stock settles at `price` (NO wins below the strike). */

@@ -28,7 +28,7 @@ import {
   OPERATOR,
   RPC_URL,
 } from "../src/lib/config";
-import { coverPlan } from "../src/lib/cover";
+import { coverPlan, defaultCoverRange } from "../src/lib/cover";
 import { countdown, etTime, pct, tokens, usd } from "../src/lib/format";
 import {
   currentPayout,
@@ -308,9 +308,9 @@ async function planCover(args: CoverArgs) {
       throw new Error(`${what} must be one of the strikes below the price: ${below.map((x) => usd(x)).join(", ")}.`);
     return k;
   };
-  // Same default as the app: skip strikes hugging the price, which cost about as much as they pay.
-  const from = pick(args.starts_below, "starts_below") ?? below.find((k) => k <= spot * 0.99) ?? below[0];
-  const to = pick(args.down_to, "down_to") ?? below.at(-1)!;
+  const range = defaultCoverRange(series.markets, spot)!;
+  const from = pick(args.starts_below, "starts_below") ?? range.from;
+  const to = pick(args.down_to, "down_to") ?? range.to;
   if (to > from) throw new Error("down_to must be at or below starts_below.");
 
   const plan = coverPlan(series.markets, spot, shares, UNIT, { from, to });

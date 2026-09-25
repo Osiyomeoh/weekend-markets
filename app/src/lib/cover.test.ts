@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { coverPayout, coverPlan, stakeForPayout } from "./cover";
+import { coverPayout, coverPlan, defaultCoverRange, stakeForPayout } from "./cover";
 import { MarketView, previewPayout } from "./ladder";
 
 const U = 1_000_000; // raw units per dollar
@@ -120,5 +120,21 @@ describe("coverPlan", () => {
     expect(coverPlan(ladder, 376.65, 0, U).legs).toEqual([]);
     expect(coverPlan(ladder, 340, 10, U).legs).toEqual([]);
     expect(coverPlan(ladder, Number.NaN, 10, U).legs).toEqual([]);
+  });
+});
+
+describe("defaultCoverRange", () => {
+  const ladder = [market(90, 900, 100), market(95, 800, 200), market(99.5, 600, 400), market(105, 300, 700)];
+
+  it("skips strikes within 1% of the price and runs to the lowest", () => {
+    expect(defaultCoverRange(ladder, 100)).toEqual({ from: 95, to: 90 });
+  });
+
+  it("falls back to the nearest strike when every strike is within 1%", () => {
+    expect(defaultCoverRange([market(99.5, 600, 400)], 100)).toEqual({ from: 99.5, to: 99.5 });
+  });
+
+  it("ignores closed markets and is null with nothing below the price", () => {
+    expect(defaultCoverRange([market(95, 800, 200, { status: "resolved" }), market(105, 300, 700)], 100)).toBeNull();
   });
 });
