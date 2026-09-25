@@ -1,0 +1,37 @@
+# Checks every push: the app (types, lint, unit tests, production build) and the
+# program's unit tests. The LiteSVM integration tests load the compiled program
+# (anchor build --arch v0), so they run locally with `cargo test -p weekend-markets`.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  program:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      # rust-toolchain.toml pins the toolchain; rustup installs it on first use.
+      - run: cargo test -p weekend-markets --lib

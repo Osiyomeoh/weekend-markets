@@ -2,6 +2,8 @@
 
 **Gap cover for tokenized stocks.** Hedge the hours Wall Street is closed, settled on Solana by the first Pyth price after the bell.
 
+[![ci](https://github.com/Osiyomeoh/weekend-markets/actions/workflows/ci.yml/badge.svg)](https://github.com/Osiyomeoh/weekend-markets/actions/workflows/ci.yml)
+
 **Live app (Solana devnet):** https://weekend-markets.vercel.app · **Program:** [`2oihGq9YRDQkgeEXwrzGcgs9UjDZVUKeKZCP81UkTSN9`](https://explorer.solana.com/address/2oihGq9YRDQkgeEXwrzGcgs9UjDZVUKeKZCP81UkTSN9?cluster=devnet)
 
 > Built for the Solana Foundation **Stocklana** hackathon (September 2026). Everything under [What's built](#whats-built) is in this repo and running on devnet; everything else is labeled as planned.
@@ -125,9 +127,10 @@ If a strike has stakes on only one side when betting closes, or no valid print a
 
 ```mermaid
 flowchart TB
-  U["Holder or trader<br/>wallet signs only"] --> APP["Web app · Next.js on Vercel"]
+  U["Holder or trader<br/>wallet signs only"] --> APP["Web app and MCP server<br/>Next.js on Vercel"]
+  AG["AI agent<br/>hosted /mcp or local server"] --> APP
   APP -- "read-only balance" --> XS["TSLAx · TSLAon<br/>Solana mainnet"]
-  APP -- "live quotes" --> HE[("Pyth Hermes<br/>signed price updates")]
+  APP -- "live and past prices,<br/>market hours" --> HE[("Pyth Hermes<br/>signed price updates")]
   APP -- "buy cover · trade · claim" --> WM
   KP["Settler: keeper or Settle button<br/>anyone can run it"] -- "update for resolve_ts" --> HE
   KP -- "post update, then resolve" --> PR
