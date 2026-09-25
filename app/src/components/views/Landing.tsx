@@ -188,7 +188,7 @@ export function Landing() {
       <ForAgents plan={plan} until={weekend?.resolveTs} />
 
       {/* Verified settlement */}
-      <section>
+      <section id="settlement" className="scroll-mt-24">
         <SectionTitle
           eyebrow="Settlement"
           title="Nobody picks the number. Not even us."

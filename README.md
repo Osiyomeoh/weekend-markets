@@ -6,6 +6,12 @@
 
 **Live app (Solana devnet):** https://weekend-markets.vercel.app · **Program:** [`2oihGq9YRDQkgeEXwrzGcgs9UjDZVUKeKZCP81UkTSN9`](https://explorer.solana.com/address/2oihGq9YRDQkgeEXwrzGcgs9UjDZVUKeKZCP81UkTSN9?cluster=devnet)
 
+**Try it in a minute:**
+
+1. **As a holder:** switch your wallet to devnet, open [the Cover page](https://weekend-markets.vercel.app/cover), connect, tap **Get funds**, then **Buy cover**.
+2. **As an agent:** `claude mcp add --transport http weekend-markets https://weekend-markets.vercel.app/mcp`, then ask Claude *"What's the TSLA gap right now, and what would it cost to cover 10 shares until Monday's open?"*
+3. **As a skeptic:** read the [track record](https://weekend-markets.vercel.app/#settlement) on the landing page. Every ladder settled on the first Pyth print at its deadline, and each links to the chain.
+
 > Built for the Solana Foundation **Stocklana** hackathon (September 2026). Everything under [What's built](#whats-built) is in this repo and running on devnet; everything else is labeled as planned.
 
 ---
