@@ -109,7 +109,7 @@ export function Landing() {
       </section>
 
       {/* The gap */}
-      <section>
+      <section id="problem" className="scroll-mt-24">
         <SectionTitle
           eyebrow="The problem"
           title="The token trades 168 hours a week. Tesla's regular session is 32.5."

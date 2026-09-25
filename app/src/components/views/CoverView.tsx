@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 
-import { etTime } from "@/lib/format";
+import history from "@/data/tsla-gaps.json";
+import { etTime, pct, usd } from "@/lib/format";
 
 import { useApp } from "../AppState";
 import { CoverPanel } from "../CoverPanel";
@@ -56,6 +57,7 @@ export function CoverView() {
         )}
 
         {stock && <GapNow stock={stock} />}
+        {stock?.symbol === "TSLA" && <OpenHistoryNote />}
 
         {markets.error && <p className="text-sm text-no">Could not load markets from devnet: {markets.error}</p>}
         {!markets.data && !markets.error ? (
@@ -92,5 +94,28 @@ export function CoverView() {
         </p>
       </div>
     </>
+  );
+}
+
+/** What the opening print has done lately, from Pyth history (see the landing page's chart). */
+function OpenHistoryNote() {
+  const gaps = history.gaps;
+  if (gaps.length === 0) return null;
+  const over2 = gaps.filter((g) => Math.abs(g.gap) > 0.02).length;
+  const worst = gaps.reduce((a, g) => (Math.abs(g.gap) > Math.abs(a.gap) ? g : a));
+  const date = new Date(`${worst.to}T12:00:00Z`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+  return (
+    <p className="-mt-3 text-xs text-muted">
+      Since July, Tesla&apos;s open has moved more than 2% from the previous close on {over2} of {gaps.length} days. The
+      largest was {pct(worst.gap, 1)} on {date}: {usd(10 * worst.close * Math.abs(worst.gap), 0)} on 10 shares, at the
+      bell.{" "}
+      <Link href="/#problem" className="underline hover:text-text">
+        Every open since July
+      </Link>
+    </p>
   );
 }
