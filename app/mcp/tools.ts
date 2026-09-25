@@ -20,14 +20,15 @@ All money is test USDC (tUSDC) on devnet.`;
 const LOCAL = `${ABOUT}
 
 Typical flow: wallet, then get_test_funds the first time. gap_now shows how far the token has drifted from the
-stock's last price. quote_cover prices protection; show the user the cost and what it pays before buying.
-buy_cover spends from the agent's wallet, up to the spending cap. my_cover follows positions. After the deadline,
+stock's last price. quote_cover prices protection; show the user the cost and what it pays before buying (cover_backtest shows what
+the same cover did on every past opening). buy_cover spends from the agent's wallet, up to the spending cap. my_cover follows positions. After the deadline,
 settle (anyone can) and then claim. track_record shows how every past ladder settled.`;
 
 const HOSTED = `${ABOUT}
 
 This hosted server holds no keys and spends nothing. gap_now shows how far the token has drifted from the stock's
-last price; quote_cover prices protection; track_record shows how every past ladder settled on Pyth. To buy, call
+last price; quote_cover prices protection; cover_backtest shows what cover did on every past opening; track_record
+shows how every past ladder settled on Pyth. To buy, call
 cover_transaction with the buyer's wallet address: it returns an unsigned transaction to sign with that wallet.
 positions follows any wallet. An agent that should hold its own wallet and buy and claim by itself can run the local
 server from https://github.com/Osiyomeoh/weekend-markets (app/mcp).`;
@@ -116,6 +117,21 @@ export function createServer(kind: "local" | "hosted"): McpServer {
       annotations: read,
     },
     () => respond(() => agent.trackRecord()),
+  );
+
+  server.registerTool(
+    "cover_backtest",
+    {
+      title: "Backtest cover",
+      description:
+        "What cover would have cost and paid on every past opening since Pyth's history begins, priced each night only from the openings before it, as the keeper now prices ladders. Use it to show a user what cover has actually done before they buy.",
+      inputSchema: {
+        stock,
+        shares: z.number().positive().optional().describe("Shares covered each night. Default 10."),
+      },
+      annotations: read,
+    },
+    ({ stock, shares }) => respond(() => agent.coverBacktest(stock, shares)),
   );
 
   server.registerTool(

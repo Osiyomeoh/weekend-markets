@@ -22,6 +22,7 @@ import {
 } from "../src/lib/config";
 import { coverPlan, CoverPlan, defaultCoverRange } from "../src/lib/cover";
 import { countdown, etTime, pct, tokens, usd } from "../src/lib/format";
+import { backtestCover, MIN_HISTORY, openingHistory } from "../src/lib/gapModel";
 import {
   currentPayout,
   groupSeries,
@@ -493,6 +494,27 @@ export async function trackRecord(): Promise<string> {
   return [
     `${done.length} ladders, ${strikes} strikes settled by Pyth, ${voided} voided. Each settled on the first Pyth print at or after its deadline, checked on-chain.`,
     ...lines,
+  ].join("\n");
+}
+
+/**
+ * Cover replayed on every past opening with the keeper's pricing: at each
+ * close, priced only from the openings before it; paid by the actual open.
+ */
+export async function coverBacktest(symbol?: string, shares = 10): Promise<string> {
+  const stock = findStock(symbol);
+  const history = openingHistory(stock);
+  if (history.length <= MIN_HISTORY) throw new Error(`Not enough ${stock.symbol} openings recorded to backtest yet.`);
+  const bt = backtestCover(stock, history, shares);
+  const t = bt.priced;
+  const paid = bt.nights.filter((n) => n.source === "history" && n.paid > 0);
+  return [
+    `Cover on ${shares} ${stock.symbol} bought at every close, over the ${t.nights} openings from ${bt.nights[MIN_HISTORY].to} to ${bt.nights.at(-1)!.to}. ` +
+      `Each night is priced only from the openings before it, with the default range (from the first strike 1% or more below the close down to the lowest), and paid by the first Pyth print at or after 09:30 ET.`,
+    `Paid in ${usd(t.cost)}, paid out ${usd(t.paid)} (${Math.round((t.paid / t.cost) * 100)} cents per dollar). The shares lost ${usd(t.loss)} on down openings; cover has a deductible and a cap.`,
+    `It paid on ${paid.length} of ${t.nights} openings:`,
+    ...paid.map((n) => `  ${n.to}: opened ${pct(n.gap, 2)}, shares lost ${usd(n.loss)}, cover cost ${usd(n.cost)} and paid ${usd(n.paid)}.`),
+    `The same cover at the launch pricing (a lognormal at ${Math.round(stock.annualVol * 100)}% annual volatility) would have cost ${usd(t.lognormalCost)} and paid ${usd(t.lognormalPaid)}. Ladders are now seeded from this history.`,
   ].join("\n");
 }
 

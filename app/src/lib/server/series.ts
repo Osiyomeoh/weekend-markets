@@ -6,7 +6,8 @@ import {
 import { ComputeBudgetProgram, Connection, Keypair, Transaction } from "@solana/web3.js";
 
 import { COLLATERAL_DECIMALS, COLLATERAL_MINT } from "../config";
-import { modelProbabilityAbove, strikeToOnChain } from "../ladder";
+import { gapModel, ladderOdds, openingHistory, seedSplit } from "../gapModel";
+import { DEFAULT_LADDER, strikeToOnChain } from "../ladder";
 import { createMarketIx, getProgram, marketPda, placeBetIxs } from "../program";
 import { Stock, STOCKS } from "../stocks";
 import { keypairWallet } from "./keypairWallet";
@@ -23,18 +24,7 @@ export type LadderSpec = {
   maxConfBps: number;
 };
 
-export const DEFAULT_LADDER = {
-  lockBeforeSecs: 300,
-  strikes: 5,
-  seed: 5_000,
-  windowSecs: 120,
-  voidDelaySecs: 3_600,
-  maxConfBps: 100,
-};
-
-function roundToTick(x: number, tick: number): number {
-  return Math.round(x / tick) * tick;
-}
+export { DEFAULT_LADDER };
 
 /** Deterministic id, so creating the same ladder twice is a no-op. */
 export function ladderMarketId(stock: Stock, resolveTs: number, index: number): bigint {
@@ -47,9 +37,11 @@ export async function ladderExists(connection: Connection, operator: Keypair, st
 }
 
 /**
- * Creates a strike ladder around `spot` and seeds every market at lognormal
- * model odds, so it opens with a price. Strikes are spaced about 0.6 standard
- * deviations apart over the horizon. Markets that already exist are skipped.
+ * Creates a strike ladder around `spot` and seeds every market at model odds,
+ * so it opens with a price: from the stock's history of opening moves once it
+ * has enough of them, otherwise lognormal (see gapModel.ts). Strikes are
+ * spaced about 0.6 standard deviations apart. Markets that already exist are
+ * skipped.
  */
 export async function createLadder(
   connection: Connection,
@@ -64,19 +56,15 @@ export async function createLadder(
   if (spec.strikes < 1 || spec.strikes % 2 === 0) throw new Error("strikes must be odd");
 
   const years = (resolveTs - Date.now() / 1000) / (365 * 86_400);
-  const sd = spot * stock.annualVol * Math.sqrt(years);
-  const step = Math.max(stock.tick, roundToTick(sd * 0.6, stock.tick));
-  const center = roundToTick(spot, stock.tick);
-  const half = (spec.strikes - 1) / 2;
+  const odds = ladderOdds(gapModel(stock, years, openingHistory(stock)), spot, stock.tick, spec.strikes);
   const seed = BigInt(Math.round(spec.seed * 10 ** COLLATERAL_DECIMALS));
 
   const plans = [];
-  for (let k = -half; k <= half; k++) {
-    const strike = center + k * step;
+  for (const [index, { strike, p }] of odds.entries()) {
     const { price, expo } = strikeToOnChain(strike);
     const { market, ix } = await createMarketIx(program, {
       creator: operator.publicKey,
-      marketId: ladderMarketId(stock, resolveTs, k + half),
+      marketId: ladderMarketId(stock, resolveTs, index),
       feedId: stock.equityFeedId,
       strikePrice: price,
       strikeExpo: expo,
@@ -87,9 +75,7 @@ export async function createLadder(
       maxConfBps: spec.maxConfBps,
     });
     if (await connection.getAccountInfo(market)) continue;
-    const p = Math.min(0.95, Math.max(0.05, modelProbabilityAbove(spot, strike, stock.annualVol, years)));
-    const yes = BigInt(Math.max(1, Math.round(Number(seed) * p)));
-    plans.push({ strike, market, ix, yes, no: seed - yes });
+    plans.push({ strike, market, ix, ...seedSplit(seed, p) });
   }
   if (plans.length === 0) return { created: [], skipped: spec.strikes };
 

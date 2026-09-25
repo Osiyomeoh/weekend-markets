@@ -44,6 +44,7 @@ async function main() {
   await call("gap_now");
   await call("list_ladders");
   await call("quote_cover", { shares: 1 });
+  await call("cover_backtest", { shares: 10 });
   // Guards: over the cap, and under the quoted cost, must both refuse without spending.
   await call("buy_cover", { shares: 1, max_cost: 1000 }, true);
   await call("buy_cover", { shares: 1, max_cost: 0.01 }, true);

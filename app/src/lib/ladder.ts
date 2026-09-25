@@ -5,6 +5,16 @@
  */
 
 export type Side = "yes" | "no";
+
+/** The ladder the keeper opens for every opening bell. Seed is in dollars per market. */
+export const DEFAULT_LADDER = {
+  lockBeforeSecs: 300,
+  strikes: 5,
+  seed: 5_000,
+  windowSecs: 120,
+  voidDelaySecs: 3_600,
+  maxConfBps: 100,
+};
 export type Status = "open" | "resolved" | "voided";
 
 export type MarketView = {

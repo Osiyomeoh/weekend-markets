@@ -1,6 +1,6 @@
 /**
  * Checks the hosted MCP endpoint through the protocol, as a remote client
- * would: lists tools, reads the gap, the track record and the pre-IPO gap, quotes cover, and
+ * would: lists tools, reads the gap, the track record, the pre-IPO gap and the backtest, quotes cover, and
  * asks for an unsigned cover transaction for a throwaway wallet (never sent).
  *
  *   npx tsx mcp/smoke-hosted.ts                                    # production
@@ -29,6 +29,7 @@ async function main() {
   await call("gap_now");
   await call("track_record");
   await call("pre_ipo_gap", { stock: "OPENAI" });
+  await call("cover_backtest", { shares: 10 });
   await call("quote_cover", { shares: 1 });
   const buyer = Keypair.generate().publicKey.toBase58();
   const text = await call("cover_transaction", { shares: 1, account: buyer });

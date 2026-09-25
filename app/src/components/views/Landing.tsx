@@ -9,6 +9,7 @@ import { impliedMedian, impliedProbability, MarketView, seriesCurve } from "@/li
 import { pythFeedUrl, STOCKS } from "@/lib/stocks";
 
 import { useApp } from "../AppState";
+import { CoverBacktest } from "../CoverBacktest";
 import { CurveChart } from "../CurveChart";
 import { GapHistory } from "../GapHistory";
 import { GapNow } from "../GapNow";
@@ -117,6 +118,7 @@ export function Landing() {
         />
         <WeekStrip />
         <GapHistory />
+        <CoverBacktest />
       </section>
 
       {/* How cover works */}
