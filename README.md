@@ -62,6 +62,18 @@ Guardrails:
 
 `npm run agent:smoke` runs the whole flow through the MCP protocol with a separate wallet: it lists the tools, funds the wallet, reads the gap, checks that both spending guards refuse, buys cover for one share, and reads it back.
 
+### Any wallet or agent: a Solana Action
+
+Agents without MCP, and wallets and Blink clients, can use the same cover over plain HTTP, following the [Solana Actions](https://solana.com/docs/advanced/actions) spec:
+
+```
+GET  https://weekend-markets.vercel.app/api/actions/cover            → live quote and buttons
+POST https://weekend-markets.vercel.app/api/actions/cover?shares=10  { "account": "<wallet>" }
+                                                                      → { "transaction": "<base64, ready to sign>" }
+```
+
+`shares=held` sizes the cover to the TSLAx and TSLAon the signer holds on mainnet. A brand-new devnet wallet is sent test funds in the same call, so one click works from nothing. [`/actions.json`](https://weekend-markets.vercel.app/actions.json) maps the Cover page to the action. `npm run smoke` buys through it with an empty wallet.
+
 ## Why Solana
 
 1. **The holders are here.** xStocks and Ondo tokenized stocks are Token-2022 tokens on Solana, so cover can read what a wallet holds and settle in dollars on the same chain.
@@ -124,9 +136,10 @@ flowchart TB
   - a track record of every settled ladder, read from the chain;
   - devnet faucet.
 - **MCP server for agents:** 9 tools covering the full flow, with a devnet-only check and two spending limits, plus a smoke test that drives it through the MCP protocol.
+- **Solana Action (Blink) for cover:** a live quote on GET and a ready-to-sign transaction on POST, funding new wallets in the same call.
 - **Always-on keeper:** settles due ladders and opens the next opening-bell ladder every 10 minutes (GitHub Actions calling a secured route).
 - **TypeScript client, keeper and operator scripts:** `series` (open a ladder), `add-liquidity`, `tick` and `keeper` (one pass, or every minute), `status`, and `smoke` (runs the whole user flow against a deployed app with a fresh wallet).
-- **36 TypeScript unit tests** for the ladder and cover math and the US session calendar (daylight saving, weekends).
+- **39 TypeScript unit tests** for the ladder and cover math and the US session calendar (daylight saving, weekends).
 
 ## Limits
 

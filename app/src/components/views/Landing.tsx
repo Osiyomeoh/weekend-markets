@@ -183,6 +183,8 @@ export function Landing() {
         </section>
       )}
 
+      <ForAgents plan={plan} until={weekend?.resolveTs} />
+
       {/* Verified settlement */}
       <section>
         <SectionTitle
@@ -359,6 +361,88 @@ export function Landing() {
         </Link>
       </section>
     </div>
+  );
+}
+
+const AGENT_SETUP = `git clone https://github.com/Osiyomeoh/weekend-markets && cd weekend-markets/app && npm i
+claude mcp add weekend-markets -- node "$PWD/node_modules/tsx/dist/cli.mjs" "$PWD/mcp/server.ts"`;
+
+const ACTION_CALL = `POST https://weekend-markets.vercel.app/api/actions/cover?shares=10
+{ "account": "<wallet address>" }  →  { "transaction": "<ready to sign>" }`;
+
+/** The same cover, for agents: MCP tools, and a Solana Action any wallet can sign. */
+function ForAgents({ plan, until }: { plan: CoverPlan | null; until: number | undefined }) {
+  const legs = plan?.legs ?? [];
+  return (
+    <section>
+      <SectionTitle
+        eyebrow="For agents"
+        title="Holders get an app. Agents get a tool."
+        sub="An agent running a tokenized-stock portfolio holds over the weekend too. It can buy the same cover: through MCP tools for Claude and other agents, or through a Solana Action any wallet can sign. Cover never pays more than the position loses, so an agent can hedge with it but can't gamble with it."
+      />
+      <div className="grid gap-px overflow-hidden rounded-xl border border-line bg-line lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+        <div className="bg-panel px-6 py-5">
+          <div className="text-xs uppercase tracking-wider text-muted">Example, with today&apos;s prices</div>
+          {legs.length > 0 && until !== undefined ? (
+            <div className="mt-4 flex flex-col gap-3 text-sm">
+              <p className="max-w-[88%] self-end rounded-2xl rounded-br-sm bg-panel-2 px-4 py-2.5 leading-relaxed">
+                I&apos;m holding {EXAMPLE_SHARES} TSLAx over the weekend. Protect me if Tesla opens Monday below{" "}
+                {usd(legs[0].strike)}, and spend at most $100.
+              </p>
+              <div className="num flex flex-wrap gap-1.5 text-[11px] text-muted">
+                {["gap_now", "quote_cover", "buy_cover"].map((t) => (
+                  <span key={t} className="rounded-full border border-line px-2 py-0.5">
+                    {t}
+                  </span>
+                ))}
+              </div>
+              <p className="max-w-[92%] leading-relaxed">
+                Done. Cover for {EXAMPLE_SHARES} TSLA until {etTime(until, false)} cost{" "}
+                <span className="num text-bell">
+                  {tokens(plan!.cost)} {COLLATERAL_SYMBOL}
+                </span>
+                . If Tesla opens below {usd(legs[0].strike)} it pays{" "}
+                <span className="num">{tokens(legs[0].payout)}</span>, rising to{" "}
+                <span className="num">{tokens(plan!.maxPayout)}</span> below {usd(legs.at(-1)!.strike)}. It settles on
+                the first Pyth print after the bell, and I&apos;ll claim whatever it pays.
+              </p>
+            </div>
+          ) : (
+            <div aria-hidden className="mt-4 h-40 animate-pulse rounded-lg bg-panel-2" />
+          )}
+        </div>
+        <div className="flex flex-col gap-5 bg-panel px-6 py-5 text-sm">
+          <div>
+            <div className="font-medium">MCP server</div>
+            <p className="mt-1 leading-relaxed text-muted">
+              Nine tools: read the gap, quote and buy cover sized to shares or to what a mainnet wallet holds, follow
+              it, settle, claim. The agent signs with its own devnet wallet, under a spending cap you set.
+            </p>
+            <pre className="num mt-2 rounded-lg bg-bg px-3 py-2 text-[11px] leading-relaxed break-all whitespace-pre-wrap text-text">
+              {AGENT_SETUP}
+            </pre>
+          </div>
+          <div>
+            <div className="font-medium">Solana Action</div>
+            <p className="mt-1 leading-relaxed text-muted">
+              Any wallet, Blink client or agent can send its address and get a ready-to-sign cover transaction. A new
+              devnet wallet is funded in the same call.
+            </p>
+            <pre className="num mt-2 rounded-lg bg-bg px-3 py-2 text-[11px] leading-relaxed break-all whitespace-pre-wrap text-text">
+              {ACTION_CALL}
+            </pre>
+          </div>
+          <a
+            href="https://github.com/Osiyomeoh/weekend-markets#for-agents"
+            target="_blank"
+            rel="noreferrer"
+            className="self-start text-bell underline"
+          >
+            Agent docs ↗
+          </a>
+        </div>
+      </div>
+    </section>
   );
 }
 
