@@ -366,6 +366,9 @@ export function Landing() {
   );
 }
 
+/** The devnet wallet our demo agent (the local MCP server) buys and claims with. */
+const DEMO_AGENT = "73RwU1iFw38iqzRH1CuXBRRnisGhhdf5hZXVy2s9ESWN";
+
 const AGENT_SETUP = `claude mcp add --transport http weekend-markets https://weekend-markets.vercel.app/mcp`;
 
 const ACTION_CALL = `POST https://weekend-markets.vercel.app/api/actions/cover?shares=10
@@ -383,7 +386,12 @@ function ForAgents({ plan, until }: { plan: CoverPlan | null; until: number | un
       />
       <div className="grid gap-px overflow-hidden rounded-xl border border-line bg-line lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <div className="bg-panel px-6 py-5">
-          <div className="text-xs uppercase tracking-wider text-muted">Example, with today&apos;s prices</div>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="text-xs uppercase tracking-wider text-muted">Example, with today&apos;s prices</span>
+            <Link href={`/portfolio?address=${DEMO_AGENT}`} className="text-xs text-bell underline">
+              The demo agent&apos;s positions, live
+            </Link>
+          </div>
           {legs.length > 0 && until !== undefined ? (
             <div className="mt-4 flex flex-col gap-3 text-sm">
               <p className="max-w-[88%] self-end rounded-2xl rounded-br-sm bg-panel-2 px-4 py-2.5 leading-relaxed">
