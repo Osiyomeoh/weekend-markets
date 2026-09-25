@@ -1,24 +1,16 @@
 /**
- * What an AI agent can do with Weekend Markets: read the gap, quote and buy
- * cover for a position, follow it, then settle and claim. The agent signs with
- * its own devnet wallet, and every purchase is capped by whoever runs it.
+ * What an AI agent can do with Weekend Markets without a wallet: read the gap
+ * and the ladders, quote cover for a position, build the purchase as an
+ * unsigned transaction, follow any wallet, read the track record, settle.
+ * Shared by the local MCP server (which adds its own wallet, see wallet.ts) and
+ * the hosted endpoint (which holds no keys).
  *
  * Prices, mainnet holdings, the faucet and settlement go through the app's
  * public routes, so the agent needs no API keys and never sees the operator's.
- * Everything else is read from, and signed onto, the chain directly.
+ * Everything else is read from the chain directly.
  */
 import { createAssociatedTokenAccountIdempotentInstruction, getAssociatedTokenAddressSync } from "@solana/spl-token";
-import {
-  Connection,
-  Keypair,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  sendAndConfirmTransaction,
-  Transaction,
-  TransactionInstruction,
-} from "@solana/web3.js";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { Connection, PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
 
 import {
   COLLATERAL_DECIMALS,
@@ -28,7 +20,7 @@ import {
   OPERATOR,
   RPC_URL,
 } from "../src/lib/config";
-import { coverPlan, defaultCoverRange } from "../src/lib/cover";
+import { coverPlan, CoverPlan, defaultCoverRange } from "../src/lib/cover";
 import { countdown, etTime, pct, tokens, usd } from "../src/lib/format";
 import {
   currentPayout,
@@ -40,55 +32,35 @@ import {
   Series,
   seriesCurve,
 } from "../src/lib/ladder";
-import { claimManyIxs, fetchMarkets, fetchPositions, getProgram, placeBetIxs } from "../src/lib/program";
+import { fetchMarkets, fetchPositions, getProgram, placeBetIxs } from "../src/lib/program";
 import { nextOpeningBell, usSession } from "../src/lib/sessions";
 import { Stock, STOCKS } from "../src/lib/stocks";
 
 export const APP_URL = (process.env.WEEKEND_MARKETS_URL || "https://weekend-markets.vercel.app").replace(/\/$/, "");
-export const KEYPAIR_PATH = resolve(process.env.AGENT_KEYPAIR || join(__dirname, "..", "..", "keys", "agent.json"));
-/** Most the agent may spend on one purchase, in tUSDC. Set by the person running it. */
-export const MAX_SPEND = Number(process.env.AGENT_MAX_SPEND || 100);
-// A cap that isn't a positive number would compare false against every cost; refuse to start instead.
-if (!(MAX_SPEND > 0))
-  throw new Error(`AGENT_MAX_SPEND must be a positive number of tUSDC, not "${process.env.AGENT_MAX_SPEND}"`);
 
-const UNIT = 10 ** COLLATERAL_DECIMALS;
+export const UNIT = 10 ** COLLATERAL_DECIMALS;
 const DEVNET_GENESIS = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
-const CLAIMS_PER_TX = 6;
 const UNPRICED = "this deployment only prices stocks its Pyth key is entitled to (TSLA today)";
-/** Rent for up to five position accounts plus fees. */
-const MIN_SOL = 0.02;
 
 type Quote = { feedId: string; price: number; conf: number; publishTime: number };
 type TokenPrice = { mint: string; price: number };
 type Holding = { stock: string; symbol: string; shares: number };
 
 const now = () => Math.floor(Date.now() / 1000);
-const money = (raw: bigint) => `${tokens(raw)} ${COLLATERAL_SYMBOL}`;
+export const money = (raw: bigint) => `${tokens(raw)} ${COLLATERAL_SYMBOL}`;
 
 // ---------------------------------------------------------------- plumbing
 
 let conn: Connection | null = null;
 
 /** Devnet only: the agent spends test money, and refuses to sign anywhere else. */
-async function connection(): Promise<Connection> {
+export async function connection(): Promise<Connection> {
   if (conn) return conn;
   const c = new Connection(RPC_URL, "confirmed");
   if ((await c.getGenesisHash()) !== DEVNET_GENESIS) {
     throw new Error(`${RPC_URL} is not Solana devnet. This agent only works with test money on devnet.`);
   }
   return (conn = c);
-}
-
-function loadWallet(): { keypair: Keypair; created: boolean } {
-  if (existsSync(KEYPAIR_PATH)) {
-    const secret = Uint8Array.from(JSON.parse(readFileSync(KEYPAIR_PATH, "utf8")));
-    return { keypair: Keypair.fromSecretKey(secret), created: false };
-  }
-  const keypair = Keypair.generate();
-  mkdirSync(dirname(KEYPAIR_PATH), { recursive: true });
-  writeFileSync(KEYPAIR_PATH, JSON.stringify([...keypair.secretKey]), { mode: 0o600 });
-  return { keypair, created: true };
 }
 
 async function api<T>(path: string, body?: unknown): Promise<{ status: number; body: T & { error?: string } }> {
@@ -101,16 +73,10 @@ async function api<T>(path: string, body?: unknown): Promise<{ status: number; b
   return { status: res.status, body: await res.json().catch(() => ({ error: `${path} returned ${res.status}` })) };
 }
 
-async function apiOk<T>(path: string, body?: unknown): Promise<T> {
+export async function apiOk<T>(path: string, body?: unknown): Promise<T> {
   const r = await api<T>(path, body);
   if (r.status >= 400) throw new Error(r.body.error ?? `${path} returned ${r.status}`);
   return r.body;
-}
-
-async function send(ixs: TransactionInstruction[], signer: Keypair): Promise<string> {
-  return sendAndConfirmTransaction(await connection(), new Transaction().add(...ixs), [signer], {
-    commitment: "confirmed",
-  });
 }
 
 function findStock(symbol = "TSLA"): Stock {
@@ -130,8 +96,20 @@ async function spotOf(stock: Stock): Promise<Quote> {
   return q;
 }
 
-async function allMarkets(): Promise<MarketView[]> {
-  return fetchMarkets(getProgram(await connection()), OPERATOR);
+// Listing every market is the public RPC's most rate-limited call, and one agent turn often makes several tool
+// calls in a row: share a recent result, and any request already in flight.
+let marketsCache: { at: number; markets: Promise<MarketView[]> } | null = null;
+const MARKETS_TTL_MS = 5_000;
+
+export async function allMarkets(fresh = false): Promise<MarketView[]> {
+  if (fresh || !marketsCache || Date.now() - marketsCache.at > MARKETS_TTL_MS) {
+    const markets = connection().then((c) => fetchMarkets(getProgram(c), OPERATOR));
+    marketsCache = { at: Date.now(), markets };
+    markets.catch(() => {
+      if (marketsCache?.markets === markets) marketsCache = null;
+    });
+  }
+  return marketsCache.markets;
 }
 
 /** Ladders still taking stakes, nearest deadline first. */
@@ -150,42 +128,13 @@ function parseTime(input: string): number | null {
 
 // ---------------------------------------------------------------- tools
 
-export async function wallet(): Promise<string> {
-  const { keypair, created } = loadWallet();
-  const c = await connection();
-  const [lamports, balance] = await Promise.all([c.getBalance(keypair.publicKey), tokenBalance(keypair.publicKey)]);
-  return [
-    created ? `Created a new devnet wallet for this agent at ${KEYPAIR_PATH}.` : null,
-    `Agent wallet: ${keypair.publicKey.toBase58()} (Solana devnet)`,
-    `Balance: ${money(balance)} and ${(lamports / LAMPORTS_PER_SOL).toFixed(4)} SOL`,
-    `Spending cap: ${MAX_SPEND} ${COLLATERAL_SYMBOL} per purchase, set by whoever runs this agent.`,
-    balance === 0n ? "No test funds yet: call get_test_funds." : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
-async function tokenBalance(owner: PublicKey): Promise<bigint> {
+export async function tokenBalance(owner: PublicKey): Promise<bigint> {
   try {
     const ata = getAssociatedTokenAddressSync(COLLATERAL_MINT, owner);
     return BigInt((await (await connection()).getTokenAccountBalance(ata)).value.amount);
   } catch {
     return 0n;
   }
-}
-
-export async function getTestFunds(): Promise<string> {
-  const { keypair } = loadWallet();
-  const r = await apiOk<{ signature: string | null; tokens: string; lamports: number; alreadyFunded: boolean }>(
-    "/api/faucet",
-    { owner: keypair.publicKey.toBase58() },
-  );
-  if (r.alreadyFunded) return `This wallet already has test funds.\n${await wallet()}`;
-  return [
-    `Received ${money(BigInt(r.tokens))}${r.lamports ? " and devnet SOL for fees" : ""}.`,
-    `Transaction: ${explorerTx(r.signature!)}`,
-    await wallet(),
-  ].join("\n");
 }
 
 export async function gapNow(symbol?: string): Promise<string> {
@@ -263,7 +212,7 @@ export type CoverArgs = {
   down_to?: number;
 };
 
-async function planCover(args: CoverArgs) {
+export async function planCover(args: CoverArgs) {
   const stock = findStock(args.stock);
   const [markets, q] = await Promise.all([allMarkets(), spotOf(stock)]);
   const spot = q.price;
@@ -320,7 +269,7 @@ async function planCover(args: CoverArgs) {
   return { stock, spot, shares, sharesNote, series, plan };
 }
 
-function describePlan(p: Awaited<ReturnType<typeof planCover>>): string[] {
+export function describePlan(p: Awaited<ReturnType<typeof planCover>>): string[] {
   const { stock, spot, shares, sharesNote, series, plan } = p;
   const value = shares * spot;
   const lines = [
@@ -343,79 +292,32 @@ function describePlan(p: Awaited<ReturnType<typeof planCover>>): string[] {
   return lines;
 }
 
-export async function quoteCover(args: CoverArgs): Promise<string> {
+/** `buyWith` names the tool that buys on this server: the agent's own wallet, or a transaction for the caller's. */
+export async function quoteCover(args: CoverArgs, buyWith: "buy_cover" | "cover_transaction"): Promise<string> {
   const p = await planCover(args);
   if (p.plan.legs.length === 0) throw new Error("Those choices cover nothing. Widen starts_below or down_to.");
-  const cost = Number(p.plan.cost) / UNIT;
+  const cost = Math.ceil((Number(p.plan.cost) / UNIT) * 100) / 100;
   return [
     ...describePlan(p),
     "",
-    `To buy it, call buy_cover with the same arguments and max_cost of at least ${Math.ceil(cost * 100) / 100}. Pools move as others trade, so the price can change a little.`,
+    buyWith === "buy_cover"
+      ? `To buy it, call buy_cover with the same arguments and max_cost of at least ${cost}.`
+      : "To buy it, call cover_transaction with the same arguments and the buyer's wallet as account.",
+    "Pools move as others trade, so the price can change a little.",
   ].join("\n");
 }
 
-export async function buyCover(args: CoverArgs & { max_cost: number }): Promise<string> {
-  if (!(args.max_cost > 0)) throw new Error("max_cost must be a positive amount of tUSDC.");
-  if (args.max_cost > MAX_SPEND) {
-    throw new Error(
-      `max_cost ${args.max_cost} is above this agent's spending cap of ${MAX_SPEND} ${COLLATERAL_SYMBOL}. Nothing was bought.`,
-    );
-  }
-  const { keypair } = loadWallet();
-  const p = await planCover(args);
-  const { plan } = p;
-  if (plan.legs.length === 0) throw new Error("Those choices cover nothing. Widen starts_below or down_to.");
-  const cost = Number(plan.cost) / UNIT;
-  if (cost > args.max_cost) {
-    throw new Error(`Cover now costs ${money(plan.cost)}, above max_cost ${args.max_cost}. Nothing was bought.`);
-  }
-
-  const c = await connection();
-  const [balance, lamports] = await Promise.all([tokenBalance(keypair.publicKey), c.getBalance(keypair.publicKey)]);
-  if (balance < plan.cost)
-    throw new Error(`The wallet has ${money(balance)}; cover costs ${money(plan.cost)}. Call get_test_funds.`);
-  if (lamports < MIN_SOL * LAMPORTS_PER_SOL)
-    throw new Error("The wallet needs a little devnet SOL for fees. Call get_test_funds.");
-
-  const program = getProgram(c);
-  const ata = getAssociatedTokenAddressSync(COLLATERAL_MINT, keypair.publicKey);
-  const legs = await Promise.all(
-    plan.legs.map((l) =>
-      placeBetIxs(program, {
-        market: new PublicKey(l.market.address),
-        bettor: keypair.publicKey,
-        side: "no",
-        amount: l.stake,
-      }),
-    ),
-  );
-  const sig = await send(
-    [
-      createAssociatedTokenAccountIdempotentInstruction(keypair.publicKey, ata, keypair.publicKey, COLLATERAL_MINT),
-      ...legs.flat(),
-    ],
-    keypair,
-  );
-  return [
-    `Bought. Paid ${money(plan.cost)} in one transaction.`,
-    `Transaction: ${explorerTx(sig)}`,
-    "",
-    ...describePlan(p),
-  ].join("\n");
-}
-
-export async function myCover(): Promise<string> {
-  const { keypair } = loadWallet();
-  const c = await connection();
-  const program = getProgram(c);
+/** Any wallet's positions: what each pays, what's settled, what's ready to claim. Read-only. */
+export async function positionsOf(owner: PublicKey, opts: { claimHint: string }): Promise<string> {
+  const program = getProgram(await connection());
   const [positions, markets, balance] = await Promise.all([
-    fetchPositions(program, keypair.publicKey),
+    fetchPositions(program, owner),
     allMarkets(),
-    tokenBalance(keypair.publicKey),
+    tokenBalance(owner),
   ]);
   const byAddress = new Map(markets.map((m) => [m.address, m]));
-  const lines = [`Wallet ${keypair.publicKey.toBase58()}: ${money(balance)}.`];
-  if (positions.length === 0) return [...lines, "No positions. Use quote_cover, then buy_cover."].join("\n");
+  const lines = [`Wallet ${owner.toBase58()}: ${money(balance)}.`];
+  if (positions.length === 0) return [...lines, "No positions yet. Quote cover with quote_cover."].join("\n");
 
   const t = now();
   let claimable = 0n;
@@ -476,7 +378,7 @@ export async function myCover(): Promise<string> {
   if (claimableCount > 0)
     lines.push(
       "",
-      `Ready to claim: ${money(claimable)} from ${claimableCount} position${claimableCount > 1 ? "s" : ""}. Call claim.`,
+      `Ready to claim: ${money(claimable)} from ${claimableCount} position${claimableCount > 1 ? "s" : ""}. ${opts.claimHint}`,
     );
   else if (due.size > 0) lines.push("", "Call settle to settle the ladders whose deadline has passed.");
   return lines.join("\n");
@@ -502,7 +404,7 @@ export async function settle(): Promise<string> {
       );
     }
   }
-  const after = new Map((await allMarkets()).map((m) => [m.address, m]));
+  const after = new Map((await allMarkets(true)).map((m) => [m.address, m]));
   for (const s of due) {
     const done = s.markets.map((m) => after.get(m.address)!).filter((m) => m && m.status === "resolved");
     if (done.length === 0) continue;
@@ -516,26 +418,79 @@ export async function settle(): Promise<string> {
   );
 }
 
-export async function claim(): Promise<string> {
-  const { keypair } = loadWallet();
+export async function coverIxs(owner: PublicKey, plan: CoverPlan): Promise<TransactionInstruction[]> {
   const program = getProgram(await connection());
-  const [positions, markets] = await Promise.all([fetchPositions(program, keypair.publicKey), allMarkets()]);
-  const byAddress = new Map(markets.map((m) => [m.address, m]));
-  const ready = positions.flatMap((p) => {
-    const m = byAddress.get(p.market);
-    return m && m.status !== "open" ? [{ m, owed: positionPayout(m, p.yesAmount, p.noAmount) ?? 0n }] : [];
-  });
-  if (ready.length === 0) return "Nothing to claim yet. Positions become claimable once their ladder settles.";
+  const ata = getAssociatedTokenAddressSync(COLLATERAL_MINT, owner);
+  const legs = await Promise.all(
+    plan.legs.map((l) =>
+      placeBetIxs(program, { market: new PublicKey(l.market.address), bettor: owner, side: "no", amount: l.stake }),
+    ),
+  );
+  return [createAssociatedTokenAccountIdempotentInstruction(owner, ata, owner, COLLATERAL_MINT), ...legs.flat()];
+}
 
-  const sigs: string[] = [];
-  for (let i = 0; i < ready.length; i += CLAIMS_PER_TX) {
-    const batch = ready.slice(i, i + CLAIMS_PER_TX).map((r) => new PublicKey(r.m.address));
-    sigs.push(await send(await claimManyIxs(program, { markets: batch, owner: keypair.publicKey }), keypair));
+/** Parses a wallet address, refusing program-derived ones (they can't sign). */
+export function walletAddress(input: string): PublicKey {
+  try {
+    const key = new PublicKey(input);
+    if (PublicKey.isOnCurve(key.toBytes())) return key;
+  } catch {
+    // fall through
   }
-  const total = ready.reduce((a, r) => a + r.owed, 0n);
+  throw new Error(`${input} is not a wallet address.`);
+}
+
+/**
+ * The cover quote_cover describes, as an unsigned transaction for `account` to
+ * sign and send. For agents that hold their own keys; nothing is spent here.
+ */
+export async function coverTransaction(args: CoverArgs & { account: string }): Promise<string> {
+  const owner = walletAddress(args.account);
+  const p = await planCover(args);
+  if (p.plan.legs.length === 0) throw new Error("Those choices cover nothing. Widen starts_below or down_to.");
+  const c = await connection();
+  const [balance, { blockhash, lastValidBlockHeight }] = await Promise.all([
+    tokenBalance(owner),
+    c.getLatestBlockhash("confirmed"),
+  ]);
+  const tx = new Transaction({ feePayer: owner, blockhash, lastValidBlockHeight }).add(
+    ...(await coverIxs(owner, p.plan)),
+  );
   return [
-    `Claimed ${money(total)} from ${ready.length} settled position${ready.length > 1 ? "s" : ""}.`,
-    ...sigs.map((s) => `Transaction: ${explorerTx(s)}`),
-    `Balance now: ${money(await tokenBalance(keypair.publicKey))}.`,
+    ...describePlan(p),
+    "",
+    balance < p.plan.cost
+      ? `This wallet has ${money(balance)} on devnet and needs ${money(p.plan.cost)}. Test funds: POST ${APP_URL}/api/faucet with {"owner": "${owner.toBase58()}"}, then ask for a fresh transaction.`
+      : `The wallet has ${money(balance)}, enough to pay ${money(p.plan.cost)}.`,
+    `Unsigned transaction (base64, Solana devnet, fee payer ${owner.toBase58()}). Sign it with that wallet and send it within about a minute:`,
+    tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64"),
+  ].join("\n");
+}
+
+/** Every finished ladder, newest first, with the Pyth print that settled it. */
+export async function trackRecord(): Promise<string> {
+  const done = groupSeries((await allMarkets()).filter((m) => m.status !== "open")).reverse();
+  if (done.length === 0) return "No ladder has settled yet.";
+  let strikes = 0;
+  let voided = 0;
+  const lines = done.map((s) => {
+    const stock = STOCKS.find((x) => x.equityFeedId === s.feedId)?.symbol ?? "?";
+    const settled = s.markets.find((m) => m.status === "resolved");
+    const v = s.markets.filter((m) => m.status === "voided").length;
+    strikes += s.markets.length - v;
+    voided += v;
+    if (!settled) return `${stock} ${etTime(s.resolveTs)}: no valid print, all ${v} strikes refunded.`;
+    const lag = settled.settlePublishTime! - s.resolveTs;
+    const results = s.markets.map(
+      (m) => `${usd(m.strike)} ${m.status === "voided" ? "refunded" : m.outcome!.toUpperCase()}`,
+    );
+    return (
+      `${stock} ${etTime(s.resolveTs)}: Pyth print ${usd(settled.settlePrice!, 4)}, published ` +
+      `${lag === 0 ? "exactly at the deadline" : `${lag}s after it`}. ${results.join(", ")}.`
+    );
+  });
+  return [
+    `${done.length} ladders, ${strikes} strikes settled by Pyth, ${voided} voided. Each settled on the first Pyth print at or after its deadline, checked on-chain.`,
+    ...lines,
   ].join("\n");
 }

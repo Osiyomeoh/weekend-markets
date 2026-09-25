@@ -15,7 +15,9 @@
     "status": "tsx scripts/status.ts",
     "smoke": "tsx scripts/smoke.ts",
     "agent": "tsx mcp/server.ts",
-    "agent:smoke": "tsx mcp/smoke.ts"
+    "agent:smoke": "tsx mcp/smoke.ts",
+    "agent:smoke:hosted": "tsx mcp/smoke-hosted.ts",
+    "gaps": "tsx scripts/gaps.ts"
   },
   "dependencies": {
     "@anchor-lang/core": "^1.2.0",

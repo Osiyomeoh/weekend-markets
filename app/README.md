@@ -23,7 +23,7 @@ Put these in `app/.env.local` (gitignored) for local development, or in the Verc
 
 ## Agents (MCP server)
 
-`mcp/server.ts` exposes the product as MCP tools; `mcp/agent.ts` holds the logic. It signs with its own devnet wallet and reads prices, holdings, the faucet and settlement from the app's public routes, so it needs no keys and doesn't load `.env.local`.
+The hosted endpoint is `src/app/mcp/route.ts` (stateless Streamable HTTP, no keys). The local server is `mcp/server.ts`; `mcp/tools.ts` defines the shared tools, `mcp/agent.ts` holds the logic, and `mcp/wallet.ts` the local agent's wallet. It signs with its own devnet wallet and reads prices, holdings, the faucet and settlement from the app's public routes, so it needs no keys and doesn't load `.env.local`.
 
 | Variable | Default | |
 |---|---|---|
@@ -65,4 +65,6 @@ npm run status                                # every ladder, pools and outcomes
 npm run smoke -- --url https://weekend-markets.vercel.app   # full user flow with a fresh wallet
 npm run agent                                 # the MCP server, on stdio
 npm run agent:smoke                           # the agent flow through the MCP protocol
+npm run agent:smoke:hosted                    # the hosted /mcp endpoint through the protocol
+npm run gaps                                  # rebuild the close-to-open history from Pyth
 ```

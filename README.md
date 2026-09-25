@@ -38,31 +38,44 @@ Each leg's stake comes from inverting the pool payout exactly, including the sta
 
 ## For agents
 
-An agent managing a tokenized-stock portfolio holds over the weekend like anyone else, and there's no hedge it can call today. The MCP server in [`app/mcp`](app/mcp) lets one buy gap cover the way a person does in the app.
+An agent managing a tokenized-stock portfolio holds over the weekend like anyone else, and there's no hedge it can call today. The MCP server in [`app/mcp`](app/mcp) lets one buy gap cover the way a person does in the app. There are two ways to use it.
 
-The repo's [`.mcp.json`](.mcp.json) registers it for Claude Code: after `cd app && npm install`, open the repo in Claude Code and approve the `weekend-markets` server. Elsewhere:
+### Add it by URL: no install, no keys
+
+```bash
+claude mcp add --transport http weekend-markets https://weekend-markets.vercel.app/mcp
+```
+
+Or add `https://weekend-markets.vercel.app/mcp` as a custom connector in any MCP client. The hosted server holds no keys and spends nothing: `cover_transaction` returns the purchase as an unsigned transaction for the buyer's own wallet to sign. `npm run agent:smoke:hosted` checks it through the protocol.
+
+### Run it with its own wallet
+
+The local server adds a devnet wallet for the agent, so it buys, follows and claims by itself. The repo's [`.mcp.json`](.mcp.json) registers it for Claude Code: after `cd app && npm install`, open the repo in Claude Code and approve the `weekend-markets` server. Elsewhere:
 
 ```bash
 cd app && npm install
 claude mcp add weekend-markets -e AGENT_MAX_SPEND=100 -- node "$PWD/node_modules/tsx/dist/cli.mjs" "$PWD/mcp/server.ts"
 ```
 
-Then ask, for example: *"I'm holding 10 TSLAx over the weekend. Protect me if Tesla opens Monday below $362.50, and spend at most $80."*
+Then ask, for example: *"I'm holding 10 TSLAx over the weekend. Protect me if Tesla opens Monday below $362.50, and spend at most $100."*
 
-| Tool | What it does |
-|---|---|
-| `wallet`, `get_test_funds` | The agent's own devnet wallet, created on first use, and test USDC from the faucet |
-| `gap_now` | Tesla's latest Pyth price, whether Wall Street is open, and where TSLAx trades on Solana right now |
-| `list_ladders` | Open ladders: deadline, when stakes close, YES/NO odds per strike |
-| `quote_cover` | Cost, most it pays, and the payout below each strike, for `shares` or for what a mainnet `holder` wallet holds |
-| `buy_cover` | Buys the quoted cover in one transaction, only if it costs no more than `max_cost` |
-| `my_cover`, `settle`, `claim` | Follow positions, settle due ladders on the Pyth print, collect payouts |
+| Tool | Where | What it does |
+|---|---|---|
+| `gap_now` | both | Tesla's latest Pyth price, whether Wall Street is open, and where TSLAx trades on Solana right now |
+| `list_ladders` | both | Open ladders: deadline, when stakes close, YES/NO odds per strike |
+| `quote_cover` | both | Cost, most it pays, and the payout below each strike, for `shares` or for what a mainnet `holder` wallet holds |
+| `track_record` | both | Every settled ladder: the Pyth print, when it was published, which strikes paid |
+| `settle` | both | Settles due ladders on the first Pyth print at or after the deadline |
+| `cover_transaction`, `positions` | hosted | The purchase as an unsigned transaction for any wallet; any wallet's positions |
+| `wallet`, `get_test_funds` | local | The agent's own devnet wallet, created on first use, and test USDC from the faucet |
+| `buy_cover` | local | Buys the quoted cover in one transaction, only if it costs no more than `max_cost` |
+| `my_cover`, `claim` | local | Follow the agent's positions and collect payouts |
 
-Guardrails:
+Guardrails for the local agent:
 
 - It only runs on devnet: the server checks the cluster's genesis hash before it signs anything.
 - Each purchase is capped twice: by `max_cost` on the call, and by `AGENT_MAX_SPEND`, set by the person running the agent. A purchase above either fails before anything is sent.
-- It never sees our keys. Prices, holdings, the faucet and settlement go through the app's public routes. The agent's wallet lives in `keys/agent.json` (gitignored, owner-only permissions).
+- It never sees our keys. Prices, holdings, the faucet and settlement go through the app's public routes. The agent's wallet lives in `keys/agent.json` (gitignored, owner-only permissions), and the code that touches it (`mcp/wallet.ts`) isn't part of the hosted server.
 
 `npm run agent:smoke` runs the whole flow through the MCP protocol with a separate wallet: it lists the tools, funds the wallet, reads the gap, checks that both spending guards refuse, buys cover for one share, and reads it back.
 
@@ -140,7 +153,7 @@ flowchart TB
   - a track record of every settled ladder, read from the chain;
   - a chart of every TSLA close-to-open move since July, from Pyth history;
   - devnet faucet.
-- **MCP server for agents:** 9 tools covering the full flow, with a devnet-only check and two spending limits, plus a smoke test that drives it through the MCP protocol.
+- **MCP server for agents:** hosted at `/mcp` (7 tools, no keys) and runnable locally with the agent's own wallet (10 tools, a devnet-only check and two spending limits), with smoke tests that drive both through the MCP protocol.
 - **Solana Action (Blink) for cover:** a live quote on GET and a ready-to-sign transaction on POST, funding new wallets in the same call.
 - **Always-on keeper:** settles due ladders and opens the next opening-bell ladder every 10 minutes (GitHub Actions calling a secured route).
 - **TypeScript client, keeper and operator scripts:** `series` (open a ladder), `add-liquidity`, `tick` and `keeper` (one pass, or every minute), `status`, and `smoke` (runs the whole user flow against a deployed app with a fresh wallet).

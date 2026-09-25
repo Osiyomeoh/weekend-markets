@@ -366,8 +366,7 @@ export function Landing() {
   );
 }
 
-const AGENT_SETUP = `git clone https://github.com/Osiyomeoh/weekend-markets && cd weekend-markets/app && npm i
-claude mcp add weekend-markets -- node "$PWD/node_modules/tsx/dist/cli.mjs" "$PWD/mcp/server.ts"`;
+const AGENT_SETUP = `claude mcp add --transport http weekend-markets https://weekend-markets.vercel.app/mcp`;
 
 const ACTION_CALL = `POST https://weekend-markets.vercel.app/api/actions/cover?shares=10
 { "account": "<wallet address>" }  →  { "transaction": "<ready to sign>" }`;
@@ -417,8 +416,10 @@ function ForAgents({ plan, until }: { plan: CoverPlan | null; until: number | un
           <div>
             <div className="font-medium">MCP server</div>
             <p className="mt-1 leading-relaxed text-muted">
-              Nine tools: read the gap, quote and buy cover sized to shares or to what a mainnet wallet holds, follow
-              it, settle, claim. The agent signs with its own devnet wallet, under a spending cap you set.
+              Add it to Claude or any MCP client by URL: read the gap, quote cover sized to shares or to what a mainnet
+              wallet holds, see the track record, and get the purchase as a transaction for your own wallet to sign. Run
+              it from the repo instead and the agent holds its own devnet wallet, buying and claiming under a spending
+              cap you set.
             </p>
             <pre className="num mt-2 rounded-lg bg-bg px-3 py-2 text-[11px] leading-relaxed break-all whitespace-pre-wrap text-text">
               {AGENT_SETUP}
